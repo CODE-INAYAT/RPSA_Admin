@@ -1085,7 +1085,7 @@ async function previewPdfFile(file) {
     script.onload = () => {
       document.addEventListener("adobe_dc_view_sdk.ready", function () {
         var adobeDCView = new AdobeDC.View({
-          clientId: "8594747db5284813a00a7373465d7725",
+          clientId: "9492c16ddd5842148af3548690f07cdd",
           divId: "adobe-dc-view",
         });
         adobeDCView.previewFile(
@@ -1093,7 +1093,7 @@ async function previewPdfFile(file) {
             content: { location: { url: currentFileBlob } },
             metaData: { fileName: file.name },
           },
-          { embedMode: "FULL_WINDOW" }
+          { embedMode: "IN_LINE" }
         );
         previewLoading.classList.add("hidden");
         if (!expectedPin) docPreviewIframe.classList.add("hidden");
