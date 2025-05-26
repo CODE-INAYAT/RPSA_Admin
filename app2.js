@@ -1085,7 +1085,7 @@ async function previewPdfFile(file) {
     script.onload = () => {
       document.addEventListener("adobe_dc_view_sdk.ready", function () {
         var adobeDCView = new AdobeDC.View({
-          clientId: "9492c16ddd5842148af3548690f07cdd",
+          clientId: "0d22b3450f0b4040878cf32ebd85a6c0",
           divId: "adobe-dc-view",
         });
         adobeDCView.previewFile(
