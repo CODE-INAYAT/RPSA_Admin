@@ -891,7 +891,7 @@ ${time}
   });
 }
 
-// Open file preview modal with PIN handling
+// Open file  modal with PIN handling
 async function openFilePreview(file) {
   currentFileId = file.id;
   const fileName = file.name;
@@ -1056,18 +1056,54 @@ async function previewPdfFile(file) {
   try {
     const fileContent = await fetchFileContent(file.id);
     if (!fileContent) throw new Error("Failed to fetch file content");
-    currentFileBlob = `data:application/pdf;base64,${fileContent}`;
+    const byteCharacters = atob(fileContent);
+    const byteNumbers = new Array(byteCharacters.length);
+    for (let i = 0; i < byteCharacters.length; i++) {
+      byteNumbers[i] = byteCharacters.charCodeAt(i);
+    }
+    const byteArray = new Uint8Array(byteNumbers);
+    const blob = new Blob([byteArray], { type: "application/pdf" });
+    currentFileBlob = URL.createObjectURL(blob);
     fileCache[file.id] = { blob: currentFileBlob, mimeType: "application/pdf" };
     console.log(`${file.name} cached`);
-    docPreviewIframe.src = currentFileBlob;
-    docPreviewIframe.addEventListener(
-      "load",
-      () => {
+
+    // Clear previous content
+    pdfContainer.innerHTML = "";
+    pdfContainer.classList.remove("hidden");
+
+    // Create a div for Adobe PDF Embed API
+    const adobeDiv = document.createElement("div");
+    adobeDiv.id = "adobe-dc-view";
+    pdfContainer.appendChild(adobeDiv);
+
+    // Load Adobe PDF Embed API script
+    const script = document.createElement("script");
+    script.src = "https://acrobatservices.adobe.com/view-sdk/viewer.js";
+    document.head.appendChild(script);
+
+    // Initialize Adobe PDF viewer once the SDK is ready
+    script.onload = () => {
+      document.addEventListener("adobe_dc_view_sdk.ready", function () {
+        var adobeDCView = new AdobeDC.View({
+          clientId: "8594747db5284813a00a7373465d7725",
+          divId: "adobe-dc-view",
+        });
+        adobeDCView.previewFile(
+          {
+            content: { location: { url: currentFileBlob } },
+            metaData: { fileName: file.name },
+          },
+          { embedMode: "FULL_WINDOW" }
+        );
         previewLoading.classList.add("hidden");
-        if (!expectedPin) docPreviewIframe.classList.remove("hidden");
-      },
-      { once: true }
-    );
+        if (!expectedPin) docPreviewIframe.classList.add("hidden");
+      });
+    };
+
+    script.onerror = () => {
+      console.error("Failed to load Adobe PDF Embed API");
+      showPreviewError("Error loading PDF viewer");
+    };
   } catch (error) {
     console.error("Error previewing PDF:", error);
     showPreviewError("Error loading PDF");
