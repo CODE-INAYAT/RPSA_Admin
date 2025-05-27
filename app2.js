@@ -51,7 +51,6 @@ let currentCourse = null;
 let cacheTimestamp = new Date().toDateString();
 let pollingIntervalId = null;
 let expectedPin = null; // To store the PIN extracted from filename
-let currentGoogleDocId = null; // To store the Google Doc ID extracted from filename
 
 // Initialize the application
 document.addEventListener("DOMContentLoaded", () => {
@@ -117,32 +116,12 @@ function setupPinInputListeners() {
 // Check PIN entered by user
 function checkPin() {
   const enteredPin = pinInputs.map((input) => input.value).join("");
-  const isSmallScreen = window.innerWidth < 768;
-  const fileExtension = previewFilename.textContent
-    .split(".")
-    .pop()
-    .toLowerCase();
-
   if (enteredPin.length === 4) {
     if (enteredPin === expectedPin) {
       pinContainer.classList.add("hidden");
       downloadButton.classList.remove("hidden");
       printButton.classList.remove("hidden");
-      if (
-        !isSmallScreen ||
-        (fileExtension !== "doc" && fileExtension !== "docx")
-      ) {
-        docPreviewIframe.classList.remove("hidden");
-      } else if (
-        isSmallScreen &&
-        (fileExtension === "doc" || fileExtension === "docx")
-      ) {
-        previewError.classList.remove("hidden");
-        errorMessage.innerHTML =
-          'File preview not available on mobile. Use the <svg class="inline-block w-5 h-5 text-gray-800 group-hover:text-blue-700 dark:text-white" aria-hidden="true" xmlns="http://www.w3.org/2000/svg" width="20" height="20" fill="currentColor" viewBox="0 0 24 24"> <path fill-rule="evenodd" d="M8 3a2 2 0 0 0-2 2v3h12V5a2 2 0 0 0-2-2H8Zm-3 7a2 2 0 0 0-2 2v5a2 2 0 0 0 2 2h1v-4a1 1 0 0 1 1-1h10a1 1 0 0 1 1 1v4h1a2 2 0 0 0 2-2v-5a2 2 0 0 0-2-2H5Zm4 11a1 1 0 0 1-1-1v-4h8v4a1 1 0 0 1-1 1H9Z" clip-rule="evenodd"></path> </svg> button to preview the file.';
-        docPreviewIframe.classList.add("hidden");
-        printButton.click(); // Auto-trigger print after PIN validation
-      }
+      docPreviewIframe.classList.remove("hidden");
       // Reset borders to default
       pinInputs.forEach((input) => {
         input.classList.remove("border-red-300");
@@ -390,23 +369,19 @@ async function selectFolder(folderId, folderName, isSubject) {
   }
 }
 
-// Breadcrumb and the search bar
+// Update breadcrumb with new search bar and category-based filtering
 function updateBreadcrumb(courseName, subjectName = null) {
-  const breadcrumbList = document.getElementById("breadcrumb-list");
-  const searchBarContainer = document.getElementById("search-bar");
   breadcrumbList.innerHTML = "";
-  searchBarContainer.innerHTML = "";
 
-  // Course breadcrumb
   const courseLi = document.createElement("li");
   courseLi.className = "inline-flex items-center";
   courseLi.innerHTML = `
-      <a href="#" class="inline-flex items-center text-sm font-medium text-gray-700 hover:text-blue-600 dark:text-gray-400 dark:hover:text-white">
-          <svg class="w-3 h-3 me-2.5" aria-hidden="true" xmlns="http://www.w3.org/2000/svg" fill="currentColor" viewBox="0 0 20 20">
-              <path d="m19.707 9.293-2-2-7-7a1 1 0 0 0-1.414 0l-7 7-2 2a1 1 0 0 0 1.414 1.414L2 10.414V18a2 2 0 0 0 2 2h3a1 1 0 0 0 1-1v-4a1 1 0 0 1 1-1h2a1 1 0 0 1 1 1v4a1 1 0 0 0 1 1h3a2 2 0 0 0 2-2v-7.586l.293.293a1 1 0 0 0 1.414-1.414Z"/>
-          </svg>
-          ${courseName}
-      </a>
+    <a href="#" class="inline-flex items-center text-sm font-medium text-gray-700 hover:text-blue-600 dark:text-gray-400 dark:hover:text-white">
+      <svg class="w-3 h-3 me-2.5" aria-hidden="true" xmlns="http://www.w3.org/2000/svg" fill="currentColor" viewBox="0 0 20 20">
+        <path d="m19.707 9.293-2-2-7-7a1 1 0 0 0-1.414 0l-7 7-2 2a1 1 0 0 0 1.414 1.414L2 10.414V18a2 2 0 0 0 2 2h3a1 1 0 0 0 1-1v-4a1 1 0 0 1 1-1h2a1 1 0 0 1 1 1v4a1 1 0 0 0 1 1h3a2 2 0 0 0 2-2v-7.586l.293.293a1 1 0 0 0 1.414-1.414Z"/>
+      </svg>
+      ${courseName}
+    </a>
   `;
   courseLi.querySelector("a").addEventListener("click", (e) => {
     e.preventDefault();
@@ -415,17 +390,16 @@ function updateBreadcrumb(courseName, subjectName = null) {
   });
   breadcrumbList.appendChild(courseLi);
 
-  // Subject breadcrumb
   if (subjectName) {
     const subjectLi = document.createElement("li");
     subjectLi.innerHTML = `
-          <div class="flex items-center">
-              <svg class="rtl:rotate-180 w-3 h-3 text-gray-400 mx-1" aria-hidden="true" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 6 10">
-                  <path stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="m1 9 4-4-4-4"/>
-              </svg>
-              <a href="#" class="ms-1 text-sm font-medium text-gray-700 hover:text-blue-600 md:ms-2 dark:text-gray-400 dark:hover:text-white">${subjectName}</a>
-          </div>
-      `;
+      <div class="flex items-center">
+        <svg class="rtl:rotate-180 w-3 h-3 text-gray-400 mx-1" aria-hidden="true" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 6 10">
+          <path stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="m1 9 4-4-4-4"/>
+        </svg>
+        <a href="#" class="ms-1 text-sm font-medium text-gray-700 hover:text-blue-600 md:ms-2 dark:text-gray-400 dark:hover:text-white">${subjectName}</a>
+      </div>
+    `;
     subjectLi.querySelector("a").addEventListener("click", (e) => {
       e.preventDefault();
       if (currentFolderId) selectFolder(currentFolderId, subjectName, true);
@@ -433,72 +407,41 @@ function updateBreadcrumb(courseName, subjectName = null) {
     breadcrumbList.appendChild(subjectLi);
   }
 
-  // Dropdown options (full text)
-  const dropdownOptions = [
-    { value: "Roll Number", display: "Roll Number" },
-    { value: "File ID", display: "File ID" },
-    { value: "Experiment No.", display: "Experiment No." },
-    { value: "Time", display: "Time" },
-    { value: "Size", display: "Size" },
-    { value: "File Type", display: "File Type" },
-  ];
-
-  // Search bar HTML
-  const searchHtml = `
-      <form class="max-w-lg w-full">
-          <div class="flex">
-              <label for="category-select" class="sr-only">Category</label>
-              <div class="relative z-0">
-                  <select id="category-select" class="cursor-pointer bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-s-lg focus:ring-blue-500 focus:border-blue-500 block p-2.5 dark:bg-gray-700 dark:border-gray-600 dark:placeholder-gray-400 dark:text-white dark:focus:ring-blue-500 dark:focus:border-blue-500 ${
-                    window.innerWidth < 768 ? "truncate-select" : ""
-                  }" style="border-top-left-radius: 25px; border-bottom-left-radius: 25px; ${
-    window.innerWidth < 768
-      ? "width: 70px; text-overflow: ellipsis; white-space: nowrap; overflow: hidden;"
-      : ""
-  }">
-                      <option disabled value="">Select Category</option>
-                      ${dropdownOptions
-                        .map(
-                          (opt) =>
-                            `<option class="cursor-pointer" value="${opt.value}">${opt.display}</option>`
-                        )
-                        .join("")}
-                  </select>
-              </div>
-              <div class="relative w-full">
-                  <input type="text" id="search-dropdown" class="block p-2.5 w-full z-20 text-sm text-gray-900 bg-gray-50 rounded-e-lg border-s-gray-50 border-s-2 border border-gray-300 focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:border-s-gray-700 dark:border-gray-600 dark:placeholder-gray-400 dark:text-white dark:focus:border-blue-500" placeholder="Search files..." required style="border-top-right-radius: 25px; border-bottom-right-radius: 25px;"/>
-                  <button type="submit" class="absolute top-0 end-0 p-2.5 text-sm font-medium h-full text-blue-600">
-                      <svg class="w-4 h-4" aria-hidden="true" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 20 20">
-                          <path stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="m19 19-4-4m0-7A7 7 0 1 1 1 8a7 7 0 0 1 14 0Z" />
-                      </svg>
-                      <span class="sr-only">Search</span>
-                  </button>
-              </div>
-          </div>
-      </form>
+  const searchLi = document.createElement("li");
+  searchLi.className = "inline-flex items-center ms-4";
+  searchLi.innerHTML = `
+    <form class="max-w-lg mx-auto">
+      <div class="flex">
+        <label for="category-select" class="sr-only">Category</label>
+        <div class="relative z-0">
+          <select id="category-select" class="cursor-pointer bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-s-lg focus:ring-blue-500 focus:border-blue-500 block p-2.5 dark:bg-gray-700 dark:border-gray-600 dark:placeholder-gray-400 dark:text-white dark:focus:ring-blue-500 dark:focus:border-blue-500" style=" engineers=""border-top-left-radius: 25px; border-bottom-left-radius: 25px;">
+            <option disabled value="">Select Category</option>
+            <option class="cursor-pointer" value="Roll Number">Roll Number</option>
+            <option class="cursor-pointer" value="File ID">File ID</option>
+            <option class="cursor-pointer" value="Experiment No.">Experiment No.</option>
+            <option class="cursor-pointer" value="Time">Time</option>
+            <option class="cursor-pointer" value="Size">Size</option>
+            <option class="cursor-pointer" value="File Type">File Type</option>
+          </select>
+        </div>
+        <div class="relative w-full">
+          <input type="text" id="search-dropdown" class="block p-2.5 w-full z-20 text-sm text-gray-900 bg-gray-50 rounded-e-lg border-s-gray-50 border-s-2 border border-gray-300 focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:border-s-gray-700 dark:border-gray-600 dark:placeholder-gray-400 dark:text-white dark:focus:border-blue-500" placeholder="Search files..." required style="border-top-right-radius: 25px; border-bottom-right-radius: 25px;"/>
+          <button type="submit" class="absolute top-0 end-0 p-2.5 text-sm font-medium h-full text-blue-600">
+            <svg class="w-4 h-4" aria-hidden="true" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 20 20">
+              <path stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="m19 19-4-4m0-7A7 7 0 1 1 1 8a7 7 0 0 1 14 0Z" />
+            </svg>
+            <span class="sr-only">Search</span>
+          </button>
+        </div>
+      </div>
+    </form>
   `;
+  breadcrumbList.appendChild(searchLi);
 
   // Handle category selection and search
   let selectedCategory = "Roll Number"; // Default category
-  let categorySelect, searchInput;
-
-  if (window.innerWidth >= 768) {
-    // Larger screens: Append search bar to breadcrumb list
-    const searchLi = document.createElement("li");
-    searchLi.className = "inline-flex items-center ms-4";
-    searchLi.innerHTML = searchHtml;
-    breadcrumbList.appendChild(searchLi);
-    categorySelect = searchLi.querySelector("#category-select");
-    searchInput = searchLi.querySelector("#search-dropdown");
-    // Ensure search bar is visible
-    searchBarContainer.classList.remove("block");
-    searchBarContainer.classList.add("hidden");
-  } else {
-    // Mobile screens: Append search bar to search-bar container
-    searchBarContainer.innerHTML = searchHtml;
-    categorySelect = searchBarContainer.querySelector("#category-select");
-    searchInput = searchBarContainer.querySelector("#search-dropdown");
-  }
+  const categorySelect = document.getElementById("category-select");
+  const searchInput = document.getElementById("search-dropdown");
 
   // Set default selected category
   categorySelect.value = selectedCategory;
@@ -506,7 +449,7 @@ function updateBreadcrumb(courseName, subjectName = null) {
   // Update selected category on change
   categorySelect.addEventListener("change", (e) => {
     selectedCategory = e.target.value;
-    filterFiles(searchInput.value, selectedCategory);
+    filterFiles(searchInput.value, selectedCategory); // Trigger filtering with current input
   });
 
   // Search input handling
@@ -515,37 +458,10 @@ function updateBreadcrumb(courseName, subjectName = null) {
   });
 
   // Prevent form submission and trigger search
-  const searchForm = categorySelect.closest("form");
-  searchForm.addEventListener("submit", (e) => {
+  searchLi.querySelector("form").addEventListener("submit", (e) => {
     e.preventDefault();
     filterFiles(searchInput.value, selectedCategory);
   });
-
-  // Search toggle for mobile
-  if (window.innerWidth < 768) {
-    const searchToggle = document.getElementById("search-toggle");
-    const breadcrumbNav = document.querySelector("#subject-header nav");
-    searchToggle.addEventListener("click", () => {
-      searchBarContainer.classList.add("block");
-      searchBarContainer.classList.remove("hidden");
-      breadcrumbNav.classList.add("hidden");
-      searchToggle.classList.add("hidden");
-      searchInput.focus();
-    });
-
-    // Close search bar on outside click
-    document.addEventListener("click", (e) => {
-      if (
-        !searchBarContainer.contains(e.target) &&
-        !searchToggle.contains(e.target)
-      ) {
-        searchBarContainer.classList.add("hidden");
-        searchBarContainer.classList.remove("block");
-        breadcrumbNav.classList.remove("hidden");
-        searchToggle.classList.remove("hidden");
-      }
-    });
-  }
 }
 
 // New function to filter files based on selected category
@@ -742,7 +658,7 @@ async function updateFiles(folderId) {
   }
 }
 
-// Render files as chat bubble
+// Render files in a chat-like format
 function renderFiles(files) {
   contentList.classList.add("pl-4");
 
@@ -791,9 +707,7 @@ function renderFiles(files) {
     const fileType = file.fileType || "Unknown";
 
     const pdfIcon = `
-      <svg fill="none" aria-hidden="true" class="w-5 h-5 shrink-0 ${
-        window.innerWidth < 768 ? "md:w-4 md:h-4" : ""
-      }" viewBox="0 0 20 21">
+      <svg fill="none" aria-hidden="true" class="w-5 h-5 shrink-0" viewBox="0 0 20 21" style="width: 22px;height: 22px;">
         <g clip-path="url(#clip0_3173_1381)">
           <path fill="#E2E5E7" d="M5.024.5c-.688 0-1.25.563-1.25 1.25v17.5c0 .688.562 1.25 1.25 1.25h12.5c.687 0 1.25-.563 1.25-1.25V5.5l-5-5h-8.75z"></path>
           <path fill="#B0B7BD" d="M15.024 5.5h3.75l-5-5v3.75c0 .688.562 1.25 1.25 1.25z"></path>
@@ -809,12 +723,8 @@ function renderFiles(files) {
         </defs>
       </svg>
     `;
-    const docIcon = `<img src="./MsWord_SVG.svg" class="w-5 h-5 shrink-0 ${
-      window.innerWidth < 768 ? "md:w-4 md:h-4" : ""
-    }" alt="Document Icon" />`;
-    const googleDocIcon = `<img src="./GoogleDoc_SVG.svg" class="w-5 h-5 shrink-0 ${
-      window.innerWidth < 768 ? "md:w-4 md:h-4" : ""
-    }" alt="Document Icon" />`;
+    const docIcon = `<img src="./MsWord_SVG.svg" class="w-5 h-5 shrink-0" alt="Document Icon" />`;
+    const googleDocIcon = `<img src="./GoogleDoc_SVG.svg" class="w-5 h-5 shrink-0" alt="Document Icon" style="width: 22px;height: 22px;"/>`;
 
     // Check if the file has a Google Doc ID in its name
     const hasGoogleDocId = file.name.includes("{") && file.name.includes("}");
@@ -831,7 +741,7 @@ function renderFiles(files) {
       <span class="absolute flex items-center justify-center w-7 h-7 bg-blue-100 rounded-full -start-3 ring-8 ring-white dark:ring-gray-900 dark:bg-blue-900 text-sm font-medium text-gray-900 dark:text-white roll-number">
         ${rollNumber}
       </span>
-      <div class="p-4 bg-white border border-gray-200 rounded-lg shadow-xs dark:bg-gray-700 dark:border-gray-600 cursor-pointer relative group min-h-fit" style="border-radius: 30px;">
+      <div class="p-4 bg-white border border-gray-200 rounded-lg shadow-xs dark:bg-gray-700 dark:border-gray-600 cursor-pointer relative group" style="border-radius: 30px;">
         <div class="items-center justify-between mb-3 sm:flex">
           <time class="mb-1 text-xs font-normal text-gray-400 sm:order-last sm:mb-0"><span class="bg-blue-100 text-blue-800 text-xs font-medium inline-flex items-center px-2.5 py-0.5 rounded-sm dark:bg-gray-700 dark:text-blue-400 border border-blue-400" style="border-radius: 30px;">
 <svg class="w-2.5 h-2.5 me-1.5" aria-hidden="true" xmlns="http://www.w3.org/2000/svg" fill="currentColor" viewBox="0 0 20 20">
@@ -839,23 +749,21 @@ function renderFiles(files) {
 </svg>
 ${time}
 </span></time>
-          <div class="text-sm font-normal text-gray-500 dark:text-gray-300">
+          <div class="text-sm font-normal text-gray-500 lex dark:text-gray-300">
             <a href="#" class="font-semibold text-gray-900 dark:text-white hover:underline">${fileId}</a>
           </div>
         </div>
-        <div class="p-3 text-xs italic font-normal text-gray-500 border border-gray-200 rounded-lg bg-gray-50 dark:bg-gray-600 dark:border-gray-500 dark:text-gray-300 min-h-fit" style="border-radius: 30px;">
+        <div class="p-3 text-xs italic font-normal text-gray-500 border border-gray-200 rounded-lg bg-gray-50 dark:bg-gray-600 dark:border-gray-500 dark:text-gray-300" style="border-radius: 30px;">
           <div class="flex items-start gap-2.5">
             <div class="flex flex-col gap-2.5">
-              <div class="leading-1.5 flex w-full ${
-                window.innerWidth < 768 ? "max-w-xs" : "max-w-md"
-              } flex-col">
-                <div class="flex items-start bg-gray-50 dark:bg-gray-700 rounded-xl p-2 h-auto w-full md:w-auto" style="border-radius: 15px;">
-                  <div class="me-2 flex-1">
-                    <span class="flex items-center gap-2 text-sm font-medium text-gray-900 dark:text-white pb-2 flex-wrap">
+              <div class="leading-1.5 flex w-full max-w-[400px] flex-col">
+                <div class="flex items-start bg-gray-50 dark:bg-gray-700 rounded-xl p-2" style="height: 76px; width: 216px; padding-top: 10px;">
+                  <div class="me-2">
+                    <span class="flex items-center gap-2 text-sm font-medium text-gray-900 dark:text-white pb-2">
                       ${icon}
                       <span class="experiment-number">${experimentNumber}</span>
                     </span>
-                    <span class="flex text-xs font-normal text-gray-500 dark:text-gray-400 gap-2 flex-wrap">
+                    <span class="flex text-xs font-normal text-gray-500 dark:text-gray-400 gap-2">
                       <span class="file-size">${displaySize}</span>
                       <svg xmlns="http://www.w3.org/2000/svg" aria-hidden="true" class="self-center" width="3" height="4" viewBox="0 0 3 4" fill="none">
                         <circle cx="1.5" cy="2" r="1.5" fill="#6B7280"></circle>
@@ -866,9 +774,7 @@ ${time}
                 </div>
               </div>
             </div>
-            <button class="absolute top-2 right-2 hidden group-hover:block text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-200" onclick="downloadFileFromGDrive('${
-              file.id
-            }', '${file.name}')">
+            <button class="absolute top-2 right-2 hidden group-hover:block text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-200" onclick="downloadFileFromGDrive('${file.id}', '${file.name}')">
               <svg class="w-5 h-5" aria-hidden="true" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
                 <path stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 15v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2M12 4v12m0 0-4-4m4 4 4-4"/>
               </svg>
@@ -892,6 +798,10 @@ ${time}
 }
 
 // Open file preview modal with PIN handling
+// State (add this line near the top with other global variables)
+let currentGoogleDocId = null; // To store the Google Doc ID extracted from filename
+
+// Open file preview modal with PIN handling
 async function openFilePreview(file) {
   currentFileId = file.id;
   const fileName = file.name;
@@ -905,12 +815,12 @@ async function openFilePreview(file) {
 
   if (match) {
     const [, rollNumber, experiment, fileId, pin, docId, extension] = match;
-    expectedPin = pin || null;
-    googleDocId = docId || null;
-    currentGoogleDocId = googleDocId;
-    displayName = `${rollNumber}_${experiment} [${fileId}].${extension}`;
+    expectedPin = pin || null; // PIN like "2905" or null if not present
+    googleDocId = docId || null; // Google Doc ID like "1H48XJ0dwG80RShyLxMS8WNXlKaYyF4WyEA9b_P1l9EQ"
+    currentGoogleDocId = googleDocId; // Store globally for print/download
+    displayName = `${rollNumber}_${experiment} [${fileId}].${extension}`; // e.g., "24_EXP3_IAI [S3354].doc"
   } else {
-    currentGoogleDocId = null;
+    currentGoogleDocId = null; // Reset if no match
   }
 
   previewFilename.textContent = displayName;
@@ -924,7 +834,6 @@ async function openFilePreview(file) {
   currentFileBlob = null;
 
   const fileExtension = fileName.split(".").pop().toLowerCase();
-  const isSmallScreen = window.innerWidth < 768;
 
   // Handle PIN protection
   if (expectedPin) {
@@ -945,13 +854,13 @@ async function openFilePreview(file) {
         } else if (fileExtension === "doc" || fileExtension === "docx") {
           docPreviewIframe.src = `https://docs.google.com/document/d/${
             googleDocId || file.id
-          }/preview?tab=t.0${isSmallScreen ? "&mobilebasic=0&hl=en" : ""}`;
+          }/preview?tab=t.0`;
         }
       } else {
         if (fileExtension === "pdf") {
           await previewPdfFile(file);
         } else if (fileExtension === "doc" || fileExtension === "docx") {
-          await previewDocFile(file, googleDocId, isSmallScreen);
+          await previewDocFile(file, googleDocId);
         } else {
           showPreviewError("Unsupported file type");
           return;
@@ -970,41 +879,21 @@ async function openFilePreview(file) {
         if (fileExtension === "pdf") {
           printButton.classList.add("hidden");
           docPreviewIframe.src = currentFileBlob;
-          previewLoading.classList.add("hidden");
-          docPreviewIframe.classList.remove("hidden");
         } else if (fileExtension === "doc" || fileExtension === "docx") {
           printButton.classList.remove("hidden");
-          if (isSmallScreen) {
-            previewLoading.classList.add("hidden");
-            previewError.classList.remove("hidden");
-            errorMessage.innerHTML =
-              'File preview not available on mobile. Use the <svg class="inline-block w-5 h-5 text-gray-800 group-hover:text-blue-700 dark:text-white" aria-hidden="true" xmlns="http://www.w3.org/2000/svg" width="20" height="20" fill="currentColor" viewBox="0 0 24 24"> <path fill-rule="evenodd" d="M8 3a2 2 0 0 0-2 2v3h12V5a2 2 0 0 0-2-2H8Zm-3 7a2 2 0 0 0-2 2v5a2 2 0 0 0 2 2h1v-4a1 1 0 0 1 1-1h10a1 1 0 0 1 1 1v4h1a2 2 0 0 0 2-2v-5a2 2 0 0 0-2-2H5Zm4 11a1 1 0 0 1-1-1v-4h8v4a1 1 0 0 1-1 1H9Z" clip-rule="evenodd"></path> </svg> button to preview the file.';
-            docPreviewIframe.classList.add("hidden");
-            printButton.click(); // Auto-trigger print
-          } else {
-            docPreviewIframe.src = `https://docs.google.com/document/d/${
-              googleDocId || file.id
-            }/preview?tab=t.0`;
-            previewLoading.classList.add("hidden");
-            docPreviewIframe.classList.remove("hidden");
-          }
+          docPreviewIframe.src = `https://docs.google.com/document/d/${
+            googleDocId || file.id
+          }/preview?tab=t.0`;
         }
+        previewLoading.classList.add("hidden");
+        docPreviewIframe.classList.remove("hidden");
       } else {
         if (fileExtension === "pdf") {
           printButton.classList.add("hidden");
           await previewPdfFile(file);
         } else if (fileExtension === "doc" || fileExtension === "docx") {
           printButton.classList.remove("hidden");
-          if (isSmallScreen) {
-            previewLoading.classList.add("hidden");
-            previewError.classList.remove("hidden");
-            errorMessage.innerHTML =
-              'File preview not available on mobile. Use the <svg class="inline-block w-5 h-5 text-gray-800 group-hover:text-blue-700 dark:text-white" aria-hidden="true" xmlns="http://www.w3.org/2000/svg" width="20" height="20" fill="currentColor" viewBox="0 0 24 24"> <path fill-rule="evenodd" d="M8 3a2 2 0 0 0-2 2v3h12V5a2 2 0 0 0-2-2H8Zm-3 7a2 2 0 0 0-2 2v5a2 2 0 0 0 2 2h1v-4a1 1 0 0 1 1-1h10a1 1 0 0 1 1 1v4h1a2 2 0 0 0 2-2v-5a2 2 0 0 0-2-2H5Zm4 11a1 1 0 0 1-1-1v-4h8v4a1 1 0 0 1-1 1H9Z" clip-rule="evenodd"></path> </svg> button to preview the file.';
-            docPreviewIframe.classList.add("hidden");
-            printButton.click(); // Auto-trigger print
-          } else {
-            await previewDocFile(file, googleDocId);
-          }
+          await previewDocFile(file, googleDocId);
         } else {
           printButton.classList.remove("hidden");
           showPreviewError("Unsupported file type");
@@ -1014,40 +903,6 @@ async function openFilePreview(file) {
       console.error("Error opening file preview:", error);
       showPreviewError("Error loading file");
     }
-  }
-}
-
-// Preview DOC/DOCX file using Google Docs preview
-async function previewDocFile(file, googleDocId = null, isMobile = false) {
-  try {
-    const docId = googleDocId || file.id;
-    docPreviewIframe.src = `https://docs.google.com/document/d/${docId}/preview?tab=t.0${
-      isMobile ? "&mobilebasic=0&hl=en" : ""
-    }`;
-    fileCache[file.id] = {
-      blob: docPreviewIframe.src,
-      mimeType: file.mimeType,
-    };
-    console.log(`${file.name} cached`);
-    docPreviewIframe.addEventListener(
-      "load",
-      () => {
-        previewLoading.classList.add("hidden");
-        if (!expectedPin && !isMobile) {
-          docPreviewIframe.classList.remove("hidden");
-        } else if (isMobile && !expectedPin) {
-          previewError.classList.remove("hidden");
-          errorMessage.innerHTML =
-            'File preview not available on mobile. Use the <svg class="inline-block w-5 h-5 text-gray-800 group-hover:text-blue-700 dark:text-white" aria-hidden="true" xmlns="http://www.w3.org/2000/svg" width="20" height="20" fill="currentColor" viewBox="0 0 24 24"> <path fill-rule="evenodd" d="M8 3a2 2 0 0 0-2 2v3h12V5a2 2 0 0 0-2-2H8Zm-3 7a2 2 0 0 0-2 2v5a2 2 0 0 0 2 2h1v-4a1 1 0 0 1 1-1h10a1 1 0 0 1 1 1v4h1a2 2 0 0 0 2-2v-5a2 2 0 0 0-2-2H5Zm4 11a1 1 0 0 1-1-1v-4h8v4a1 1 0 0 1-1 1H9Z" clip-rule="evenodd"></path> </svg> button to preview the file.';
-          docPreviewIframe.classList.add("hidden");
-          printButton.click(); // Auto-trigger print only if no PIN
-        }
-      },
-      { once: true }
-    );
-  } catch (error) {
-    console.error("Error previewing DOC file:", error);
-    showPreviewError("Error loading document");
   }
 }
 
@@ -1071,6 +926,30 @@ async function previewPdfFile(file) {
   } catch (error) {
     console.error("Error previewing PDF:", error);
     showPreviewError("Error loading PDF");
+  }
+}
+
+// Preview DOC/DOCX file using Google Docs preview
+async function previewDocFile(file, googleDocId = null) {
+  try {
+    const docId = googleDocId || file.id; // Use Google Doc ID from filename if available, otherwise fallback to file.id
+    docPreviewIframe.src = `https://docs.google.com/document/d/${docId}/preview?tab=t.0`;
+    fileCache[file.id] = {
+      blob: docPreviewIframe.src,
+      mimeType: file.mimeType,
+    };
+    console.log(`${file.name} cached`);
+    docPreviewIframe.addEventListener(
+      "load",
+      () => {
+        previewLoading.classList.add("hidden");
+        if (!expectedPin) docPreviewIframe.classList.remove("hidden");
+      },
+      { once: true }
+    );
+  } catch (error) {
+    console.error("Error previewing DOC file:", error);
+    showPreviewError("Error loading document");
   }
 }
 
