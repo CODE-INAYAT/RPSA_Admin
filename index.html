@@ -4,182 +4,36 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Drive WhatsApp Viewer</title>
+    <title>CRPS</title>
     <!-- Flowbite CSS CDN -->
     <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
     <link href="https://cdnjs.cloudflare.com/ajax/libs/flowbite/2.3.0/flowbite.min.css" rel="stylesheet" />
     <!-- Font Awesome for icons -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-    <!-- PDF.js for PDF preview -->
+    <!-- JetBrain Font -->
+    <link href='https://fonts.googleapis.com/css?family=JetBrains Mono' rel='stylesheet'>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.4.120/pdf.min.js"></script>
-    <style>
-        @import url('https://fonts.googleapis.com/css2?family=Open Sans&display=swap');
-
-        body {
-            font-family: "Open Sans", sans-serif;
-        }
-
-        /* Custom scrollbar */
-        ::-webkit-scrollbar {
-            width: 6px;
-        }
-
-        ::-webkit-scrollbar-track {
-            background: #f1f1f1;
-        }
-
-        ::-webkit-scrollbar-thumb {
-            background: #888;
-            border-radius: 6px;
-        }
-
-        ::-webkit-scrollbar-thumb:hover {
-            background: #555;
-        }
-
-        /* Chat bubble hover effect */
-        .chat-bubble:hover .download-icon {
-            display: flex;
-        }
-
-        /* Custom layout preservation */
-        .h-screen {
-            height: 100vh;
-        }
-
-        .flex {
-            display: flex;
-        }
-
-        .flex-col {
-            flex-direction: column;
-        }
-
-        .flex-1 {
-            flex: 1 1 0%;
-        }
-
-        .w-1\/3 {
-            width: 33.333333%;
-        }
-
-        .w-2\/3 {
-            width: 66.666667%;
-        }
-
-        .w-4\/5 {
-            width: 85%;
-        }
-
-        .h-4\/5 {
-            height: 85%;
-        }
-
-        .overflow-hidden {
-            overflow: hidden;
-        }
-
-        .overflow-y-auto {
-            overflow-y: auto;
-        }
-
-        /* Custom colors */
-        .bg-teal-700 {
-            background-color: #0d9488;
-        }
-
-        .text-teal-700 {
-            color: #0d9488;
-        }
-
-        .bg-[#e5ddd5] {
-            background-color: #e5ddd5;
-        }
-
-        /* Visibility control */
-        .hidden {
-            display: none;
-        }
-
-        /* Drawer styles for small screens */
-        @media (max-width: 767px) {
-            .bottom-drawer {
-                position: fixed;
-                bottom: -80%;
-                left: 0;
-                width: 100%;
-                height: 80%;
-                z-index: 50;
-                transition: bottom 0.3s ease-in-out, height 0.3s ease-in-out;
-                background: white;
-                border-top-left-radius: 20px;
-                border-top-right-radius: 20px;
-                box-shadow: 0 -2px 10px rgba(0, 0, 0, 0.2);
-            }
-
-            .bottom-drawer.open {
-                bottom: 0;
-            }
-
-            .bottom-drawer.fullscreen {
-                height: 100%;
-                border-radius: 0;
-            }
-
-            .right-pane {
-                width: 100%;
-            }
-
-            .overlay {
-                position: fixed;
-                top: 0;
-                left: 0;
-                width: 100%;
-                height: 100%;
-                background: rgba(0, 0, 0, 0.5);
-                z-index: 40;
-                display: none;
-            }
-
-            .overlay.active {
-                display: block;
-            }
-
-            .drag-handle {
-                width: 40px;
-                height: 5px;
-                background: #ccc;
-                border-radius: 2.5px;
-                margin: 10px auto;
-                cursor: grab;
-            }
-
-            .drag-handle:active {
-                cursor: grabbing;
-            }
-        }
-    </style>
+    <link rel="stylesheet" href="style.css">
 </head>
 
 <body class="bg-gray-100 h-screen flex flex-col">
-    <!-- Header -->
-    <header class="bg-blue-700 text-white py-3 px-4 flex items-center justify-between">
-        <h1 class="text-xl font-semibold">Drive WhatsApp Viewer</h1>
-        <button id="menu-button" class="md:hidden focus:outline-none">
-            <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"
-                xmlns="http://www.w3.org/2000/svg">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16">
-                </path>
-            </svg>
-        </button>
-    </header>
+    <div id="loading-overlay"></div>
+    <!-- Floating menu button -->
+    <button id="menu-button"
+        class="fixed right-4 md:hidden focus:outline-none z-50 bg-blue-700 text-white p-3 rounded-full shadow-lg hover:bg-blue-600 transition-all duration-300 ease-in-out menu-button"
+        aria-label="Toggle menu" style="bottom: 80px;">
+        <svg id="flotingSvg" class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"
+            xmlns="http://www.w3.org/2000/svg">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"></path>
+        </svg>
+    </button>
 
     <!-- Main container -->
     <main class="flex flex-1 overflow-hidden relative">
         <!-- Overlay for drawer -->
         <div id="overlay" class="overlay"></div>
         <!-- Bottom pane (folders) -->
-        <div id="bottom-drawer" class="bottom-drawer md:w-1/3 bg-white border-r border-gray-300 flex flex-col">
+        <div id="bottom-drawer" class="bottom-drawer md:w-1/3 bg-white border-r border-gray-200 flex flex-col">
             <!-- Drag handle -->
             <div class="drag-handle" id="drag-handle"></div>
             <!-- Search bar -->
@@ -190,21 +44,22 @@
                             class="mb-2 text-sm font-medium text-gray-900 sr-only dark:text-white">Search</label>
                         <div class="relative">
                             <div class="absolute inset-y-0 start-0 flex items-center ps-3 pointer-events-none">
-                                <svg class="w-4 h-4 text-blue-600 dark:text-blue-600" aria-hidden="true"
-                                    xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 20 20">
-                                    <path stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"
-                                        stroke-width="2" d="m19 19-4-4m0-7A7 7 0 1 1 1 8a7 7 0 0 1 14 0Z" />
+                                <svg class="w-5 h-5 text-blue-500" xmlns="http://www.w3.org/2000/svg" fill="none"
+                                    viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+                                    <path stroke-linecap="round" stroke-linejoin="round"
+                                        d="m21 21-5.197-5.197m0 0A7.5 7.5 0 1 0 5.196 5.196a7.5 7.5 0 0 0 10.607 10.607Z">
+                                    </path>
                                 </svg>
                             </div>
                             <input type="text" id="folder-search"
-                                class="block w-full p-2 ps-10 text-sm text-gray-900 border border-gray-300 rounded-lg bg-gray-50 focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:border-gray-600 dark:placeholder-gray-400 dark:text-white dark:focus:ring-blue-500 dark:focus:border-blue-500"
-                                placeholder="Search Courses" required style="border-radius: 25px;" />
+                                class="block w-full p-2 ps-10 text-sm text-gray-900 border border-gray-300 rounded-lg bg-gray-50 focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white dark:focus:ring-blue-500 dark:focus:border-blue-500"
+                                placeholder="Search Department" required style="border-radius: 15px;" />
                         </div>
                     </form>
                 </div>
             </div>
-            <!-- Folders list (Flowbite table style) -->
-            <div id="folders-container" class="relative overflow-y-auto shadow-md flex-1">
+            <!-- Folders list -->
+            <div id="folders-container" class="relative overflow-y-auto flex-1">
                 <table id="folders-list"
                     class="w-full text-sm text-left rtl:text-right text-gray-500 dark:text-gray-400">
                     <tbody>
@@ -235,27 +90,106 @@
             </div>
         </div>
         <!-- Right pane (content) -->
-        <div class="right-pane md:w-2/3 bg-gray-100 flex flex-col">
-            <!-- Subject header with Flowbite breadcrumb -->
-            <div id="subject-header" class="hidden bg-gray-200 p-3 border-b border-gray-300">
-                <nav class="flex" aria-label="Breadcrumb">
-                    <ol class="inline-flex items-center space-x-1 md:space-x-2 rtl:space-x-reverse"
-                        id="breadcrumb-list">
-                        <!-- Breadcrumb items will be populated dynamically -->
-                    </ol>
-                </nav>
+        <div
+            class="right-pane md:w-2/3 bg-[url('https://flowbite.s3.amazonaws.com/docs/jumbotron/hero-pattern.svg')] flex flex-col">
+            <!-- Subject header with breadcrumb -->
+            <div id="subject-header" class="hidden bg-white p-3 border-b border-gray-300"
+                style="backdrop-filter: blur(10px);-webkit-backdrop-filter: blur(10px);border: 1px solid rgba(255, 255,255, 0.2);box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);z-index: 10;">
+                <div class="flex items-center justify-between">
+                    <!-- Breadcrumb navigation -->
+                    <nav class="flex flex-wrap" aria-label="Breadcrumb">
+                        <ol class="inline-flex items-center space-x-1 md:space-x-2 rtl:space-x-reverse flex-wrap"
+                            id="breadcrumb-list">
+                            <!-- Breadcrumb items will be populated dynamically -->
+                        </ol>
+                    </nav>
+                    <!-- Search icon (visible on mobile) -->
+                    <button id="search-toggle" class="search-toggle md:hidden p-2 text-blue-600">
+                        <svg class="w-5 h-5 text-blue-500" xmlns="http://www.w3.org/2000/svg" fill="none"
+                            viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round"
+                                d="m21 21-5.197-5.197m0 0A7.5 7.5 0 1 0 5.196 5.196a7.5 7.5 0 0 0 10.607 10.607Z">
+                            </path>
+                        </svg>
+                        <span class="sr-only">Toggle Search</span>
+                    </button>
+                </div>
+                <!-- Search bar (hidden on mobile by default, always visible on larger screens) -->
+                <div id="search-bar" class="hidden md:block mt-2 md:mt-0">
+                    <!-- Search bar will be populated dynamically -->
+                </div>
             </div>
             <!-- Welcome message (initial state) -->
             <div id="welcome-message" class="flex-1 flex items-center justify-center p-8 text-center text-gray-500">
                 <div>
-                    <i class="fas fa-folder-open text-6xl mb-4"></i>
-                    <p class="text-xl mb-2">Drive WhatsApp Viewer</p>
-                    <p class="text-sm">Select a folder from the left to view its contents</p>
+                    <svg id="WelcomeFolder" class="fas fa-folder-open text-6xl mb-4" xmlns="http://www.w3.org/2000/svg"
+                        x="0px" y="0px" width="170" height="170" viewBox="0 0 48 48">
+                        <path fill="#ff7501" d="M33,18v23h5c0-1,0-1.748,0-2.511V18H33z" opacity=".1"></path>
+                        <path fill="#ff7501" d="M32.25,18v23h5.563c-0.452-0.799-0.563-1.748-0.563-2.511V18H32.25z"
+                            opacity=".2"></path>
+                        <path fill="#ff7501" d="M31.5,18v23h6.126c-0.905-0.598-1.126-1.748-1.126-2.511V18H31.5z"
+                            opacity=".3"></path>
+                        <path fill="#ff7501" d="M30.75,18v23h6.69c-1.357-0.397-1.69-1.748-1.69-2.511V18H30.75z"
+                            opacity=".4"></path>
+                        <path fill="#ff7501" d="M30,18v23h7.253C35.443,40.804,35,39.252,35,38.489V18H30z" opacity=".5">
+                        </path>
+                        <linearGradient id="D3NBlgD7bwuSAzHO257Ipa_Z7XpyPdwISHb_gr1" x1="27.505" x2="16.348" y1="54.084"
+                            y2="18.802" gradientUnits="userSpaceOnUse">
+                            <stop offset="0" stop-color="#ff6201"></stop>
+                            <stop offset=".689" stop-color="#fdbd19"></stop>
+                            <stop offset="1" stop-color="#fce724"></stop>
+                        </linearGradient>
+                        <path fill="url(#D3NBlgD7bwuSAzHO257Ipa_Z7XpyPdwISHb_gr1)"
+                            d="M33,11H19l-4-4H4C2.9,7,2,7.9,2,9v29.068C2,39.687,3.313,41,4.932,41h32.524	C36.12,41.016,35,39.875,35,38.489V13C35,11.9,34.1,11,33,11z">
+                        </path>
+                        <path fill="#fe910d"
+                            d="M35,38.489V18H18c-1.1,0-2.62,0.902-3,2c0,0-3.693,13.516-5,18c-0.547,1.877-2.383,3-4,3h31.457	C36.12,41.016,35,39.875,35,38.489z">
+                        </path>
+                        <path fill="#fe910d"
+                            d="M35,16H18c-1.794,0-4.174,1.279-4.89,3.345l-0.04,0.128 C13.034,19.607,9.367,33.023,8.08,37.44C7.799,38.403,6.782,41,6,41h29V16z"
+                            opacity=".05"></path>
+                        <path fill="#fe910d"
+                            d="M13.488,19.476c0,0-0.033,0.109-0.037,0.121c-0.094,0.342-3.395,12.417-4.8,17.308 c-0.085,0.294-0.168,0.566-0.255,0.811C8.025,38.765,6.899,41,6,41h29V16.4H18C16.345,16.4,14.137,17.604,13.488,19.476z"
+                            opacity=".1"></path>
+                        <path fill="#fe910d"
+                            d="M13.866,19.607c0,0-0.027,0.09-0.034,0.114c-0.152,0.556-3.479,12.723-4.844,17.458 c-0.085,0.293-0.175,0.565-0.277,0.812C8.246,39.125,7.016,41,6,41h29V16.8H18C16.484,16.8,14.448,17.928,13.866,19.607z"
+                            opacity=".2"></path>
+                        <path fill="#fe910d"
+                            d="M14.244,19.738c0,0-0.021,0.07-0.031,0.107c-0.211,0.77-3.563,13.029-4.888,17.607 c-0.085,0.292-0.183,0.565-0.298,0.813C8.464,39.484,7.133,41,6,41h29V17.2H18C16.622,17.2,14.759,18.253,14.244,19.738z"
+                            opacity=".3"></path>
+                        <path fill="#fe910d"
+                            d="M14.622,19.869c0,0-0.015,0.051-0.028,0.1c-0.269,0.985-3.647,13.335-4.931,17.757 c-0.085,0.291-0.191,0.564-0.319,0.814C8.678,39.842,7.25,41,6,41h29V17.6H18C16.761,17.6,15.07,18.578,14.622,19.869z"
+                            opacity=".4"></path>
+                        <path fill="#fe910d"
+                            d="M35,18H18c-1.1,0-2.62,0.902-3,2c0,0-3.693,13.516-5,18c-0.547,1.877-2.383,3-4,3h29V18z">
+                        </path>
+                        <linearGradient id="D3NBlgD7bwuSAzHO257Ipb_Z7XpyPdwISHb_gr2" x1="10.874" x2="30.525" y1="41.699"
+                            y2="18.101" gradientTransform="matrix(-1 0 0 1 47 0)" gradientUnits="userSpaceOnUse">
+                            <stop offset="0" stop-color="#f4805d" stop-opacity=".4"></stop>
+                            <stop offset="1" stop-color="#ffcfae" stop-opacity=".2"></stop>
+                        </linearGradient>
+                        <path fill="url(#D3NBlgD7bwuSAzHO257Ipb_Z7XpyPdwISHb_gr2)"
+                            d="M18,18h27c1.1,0,2,0.9,2,2l-5,18.583	C41.446,39.935,39.918,41,38.583,41H6c1.617,0,3.453-1.123,4-3c1.307-4.484,5-18,5-18C15.38,18.902,16.9,18,18,18z">
+                        </path>
+                        <linearGradient id="D3NBlgD7bwuSAzHO257Ipc_Z7XpyPdwISHb_gr3" x1="6" x2="47" y1="29.5" y2="29.5"
+                            gradientUnits="userSpaceOnUse">
+                            <stop offset="0" stop-color="ivory" stop-opacity=".2"></stop>
+                            <stop offset="1" stop-color="#f4805d" stop-opacity=".4"></stop>
+                        </linearGradient>
+                        <path fill="url(#D3NBlgD7bwuSAzHO257Ipc_Z7XpyPdwISHb_gr3)"
+                            d="M45,18.5c0.807,0,1.466,0.64,1.499,1.438	l-4.973,18.483C41.04,39.57,39.726,40.5,38.583,40.5H8.854c0.731-0.559,1.331-1.349,1.626-2.36	c1.293-4.437,4.965-17.873,4.992-17.976C15.783,19.268,17.122,18.5,18,18.5H45 M45,18H18c-1.1,0-2.62,0.902-3,2	c0,0-3.693,13.516-5,18c-0.547,1.877-2.383,3-4,3h32.583c1.335,0,2.863-1.065,3.417-2.417L47,20C47,18.9,46.1,18,45,18L45,18z">
+                        </path>
+                    </svg>
+                    <p id="welcomeMsg1"
+                        class="text-3xl mb-2 font-bold bg-gradient-to-r from-indigo-500 via-purple-500 to-pink-500 bg-clip-text text-transparent">
+                        Welcome To CUPS
+                    </p>
+                    <p id="welcomeMsg2" class="text-base">(Centralized Upload & Print System)</p>
                 </div>
             </div>
             <!-- Content container -->
             <div id="content-container" class="hidden flex-1 overflow-y-auto p-4 relative"
-                style="background-color: #e9eef5;">
+                style="background-color: #fafafb;">
                 <div id="loading-content"
                     class="py-8 text-center hidden absolute inset-0 flex items-center justify-center">
                     <div class="inline-block" role="status">
@@ -280,7 +214,35 @@
             </div>
         </div>
     </main>
-    <!-- File preview modal (Flowbite Modal) -->
+
+    <footer id="footerBottom" class="fotter-bottom shadow bg-gray-800 fixed bottom-0 left-0 right-0">
+        <div class="w-full mx-auto max-w-screen-xl p-1 md:flex md:items-center md:justify-center">
+            <span class="footer-text text-xs text-gray-200 sm:text-center"
+                style="font-family: 'JetBrains Mono'; font-size: 13.50px; padding-top: 4px;">Made With<svg
+                    class="mx-1 inline-block" style="height: 15px; width: 15px; margin-top: -3px;" viewBox="0 0 24 24"
+                    fill="none" xmlns="http://www.w3.org/2000/svg">
+                    <g id="SVGRepo_bgCarrier" stroke-width="0"></g>
+                    <g id="SVGRepo_tracerCarrier" stroke-linecap="round" stroke-linejoin="round"></g>
+                    <g id="SVGRepo_iconCarrier">
+                        <path
+                            d="M2 9.1371C2 14 6.01943 16.5914 8.96173 18.9109C10 19.7294 11 20.5 12 20.5C13 20.5 14 19.7294 15.0383 18.9109C17.9806 16.5914 22 14 22 9.1371C22 4.27416 16.4998 0.825464 12 5.50063C7.50016 0.825464 2 4.27416 2 9.1371Z"
+                            fill="#e24040"></path>
+                    </g>
+                </svg>By ISK<br>
+                <span class="footer-text text-md text-gray-400 md:text-center"
+                    style="padding-top: 6px; padding-bottom: 4px;">version: 2.0 |
+                    <span id="switch" class="text-sm text-blue-300 hover:underline cursor-pointer sm:text-center"
+                        style="font-family: 'JetBrains Mono';">Switch<svg
+                            class="ml-2 w-5 h-5 inline-block text-blue-300" xmlns="http://www.w3.org/2000/svg"
+                            fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round"
+                                d="M7.5 21 3 16.5m0 0L7.5 12M3 16.5h13.5m0-13.5L21 7.5m0 0L16.5 12M21 7.5H7.5" />
+                        </svg> </span></span>
+            </span>
+        </div>
+    </footer>
+
+    <!-- File preview modal -->
     <div id="preview-modal" class="fixed inset-0 bg-black bg-opacity-75 z-50 hidden flex items-center justify-center"
         data-modal-backdrop="static" tabindex="-1" aria-hidden="true">
         <div class="relative bg-white rounded-lg shadow w-4/5 h-4/5 flex flex-col" style="border-radius: 20px;">
@@ -304,14 +266,9 @@
                         class="group text-gray-700 hover:bg-gray-300 hover:text-gray-900 rounded-full p-2 transition-colors"
                         title="Download">
                         <svg class="w-6 h-6 text-gray-800 group-hover:text-blue-700 dark:text-white" aria-hidden="true"
-                            xmlns="http://www.w3.org/2000/svg" width="20" height="20" fill="currentColor"
-                            viewBox="0 0 24 24">
-                            <path fill-rule="evenodd"
-                                d="M13 11.15V4a1 1 0 1 0-2 0v7.15L8.78 8.374a1 1 0 1 0-1.56 1.25l4 5a1 1 0 0 0 1.56 0l4-5a1 1 0 0 0-1.56-1.25L13 11.15Z"
-                                clip-rule="evenodd" />
-                            <path fill-rule="evenodd"
-                                d="M9.657 15.874 7.358 13H5a2 2 0 0 0-2 2v4a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-4a2 2 0 0 0-2-2h-2.358l-2.3 2.874a3 3 0 0 1-4.685 0ZM17 16a1 1 0 1 0 0 2h.01a1 1 0 1 0 0-2H17Z"
-                                clip-rule="evenodd" />
+                            xmlns="http://www.w3.org/2000/svg" width="24" height="24" fill="none" viewBox="0 0 24 24">
+                            <path stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                d="M4 15v2a3 3 0 0 0 3 3h10a3 3 0 0 0 3-3v-2m-8 1V4m0 12-4-4m4 4 4-4" />
                         </svg>
                     </button>
 
@@ -327,7 +284,7 @@
                 </div>
             </div>
             <!-- Preview container -->
-            <div id="preview-container" class="flex-1 overflow-y-auto p-3">
+            <div id="preview-container" class="flex-1 overflow-y-auto p-3" style="padding-top: 0px;">
                 <div id="preview-loading" class="h-full flex items-center justify-center">
                     <div class="mr-2">
                         <svg aria-hidden="true"
@@ -347,7 +304,6 @@
                     <div>
                         <i class="fas fa-exclamation-triangle text-4xl text-red-500 mb-3"></i>
                         <p id="error-message" class="text-lg text-gray-800 mb-2">Unable to preview file</p>
-                        <p class="text-sm text-gray-600">Try downloading the file instead</p>
                     </div>
                 </div>
                 <div id="pin-container" class="hidden h-full flex items-center justify-center text-center">
@@ -404,15 +360,106 @@
             </div>
         </div>
     </div>
+
+    <div id="switchModal" style="font-family: 'Plus Jakarta Sans', sans-serif;"
+        class="hidden fixed z-10 inset-0 overflow-y-auto flex items-center justify-center p-4"
+        aria-labelledby="modal-title" role="dialog" aria-modal="true">
+        <div class="w-full max-w-sm sm:max-w-md mx-2 sm:mx-0">
+            <div style="background: rgba(0, 0, 0, 0.770);" class="fixed inset-0 transition-opacity" aria-hidden="true">
+            </div>
+            <div style="border-radius: 20px;"
+                class="bg-gray-100 rounded-lg overflow-hidden shadow-xl transform transition-all w-full">
+                <!-- Modal header with close button -->
+                <div class="flex items-center justify-between p-4 md:p-5 border-b rounded-t">
+                    <h3 class="text-xl text-gray-700 w-full text-center">
+                        Year/Platform
+                    </h3>
+                </div>
+                <!-- Modal body -->
+                <div style="font-family: 'JetBrains Mono';"
+                    class="p-4 md:p-5 text-center overflow-y-auto flex flex-col items-center justify-center">
+                    <p class="mb-3 underline text-base leading-relaxed text-gray-700 stack-animation">Select From Below:
+                    </p>
+                    <div class="flex items-center mb-4">
+                        <input id="firstYear" type="radio" value="" name="default-radio"
+                            class="w-4 h-4 text-blue-600 bg-gray-100 border-gray-300 focus:ring-blue-500 dark:focus:ring-blue-600 dark:ring-offset-gray-800 focus:ring-2 dark:bg-gray-700 dark:border-gray-600 cursor-pointer">
+                        <label for="firstYear"
+                            class="ms-2 text-sm font-medium text-gray-600 dark:text-gray-300 cursor-pointer select-none">Ist
+                            Year</label>
+                    </div>
+                    <div class="flex items-center mb-4">
+                        <input id="secondYear" type="radio" value="" name="default-radio"
+                            class="w-4 h-4 text-blue-600 bg-gray-100 border-gray-300 focus:ring-blue-500 dark:focus:ring-blue-600 dark:ring-offset-gray-800 focus:ring-2 dark:bg-gray-700 dark:border-gray-600 cursor-pointer">
+                        <label for="secondYear"
+                            class="ms-2 text-sm font-medium text-gray-600 dark:text-gray-300 cursor-pointer select-none">II-IV
+                            Year</label>
+                    </div>
+                    <div class="flex items-center mb-4">
+                        <input id="firstYearUpload" type="radio" value="" name="default-radio"
+                            class="w-4 h-4 text-blue-600 bg-gray-100 border-gray-300 focus:ring-blue-500 dark:focus:ring-blue-600 dark:ring-offset-gray-800 focus:ring-2 dark:bg-gray-700 dark:border-gray-600 cursor-pointer">
+                        <label for="firstYearUpload"
+                            class="ms-2 text-sm font-medium text-gray-600 dark:text-gray-300 cursor-pointer select-none">Ist
+                            Year Pyq's
+                            Upload</label>
+                    </div>
+                    <div class="flex items-center mb-1">
+                        <input id="secondYearUpload" type="radio" value="" name="default-radio"
+                            class="w-4 h-4 text-blue-600 bg-gray-100 border-gray-300 focus:ring-blue-500 dark:focus:ring-blue-600 dark:ring-offset-gray-800 focus:ring-2 dark:bg-gray-700 dark:border-gray-600 cursor-pointer">
+                        <label for="secondYearUpload"
+                            class="ms-2 text-sm font-medium text-gray-600 dark:text-gray-300 cursor-pointer select-none">II-IV
+                            Pyq's Upload</label>
+                    </div>
+                    <!---------Switch Button------->
+                    <div id="switchButtonContainer"
+                        class="hidden mt-4 flex flex-col sm:flex-row justify-center items-center space-y-2 sm:space-y-0 sm:space-x-4 opacity-0 transform translate-y-4 transition-all duration-500 ease-out">
+                        <a id="switchButton" href="" target="_blank"
+                            class="text-white bg-green-700 hover:bg-green-800 focus:outline-none focus:ring-4 focus:ring-green-300 font-medium rounded-full text-sm px-5 py-2.5 text-center mb-2 dark:bg-green-600 dark:hover:bg-green-700 dark:focus:ring-green-800 inline-flex items-center transform hover:scale-105 transition-transform duration-200">
+                            <span class="plus-jakarta-sans">Switch<svg class="ml-2 w-5 h-5 inline-block text-blue-200"
+                                    xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"
+                                    stroke-width="1.5" stroke="currentColor">
+                                    <path stroke-linecap="round" stroke-linejoin="round"
+                                        d="M7.5 21 3 16.5m0 0L7.5 12M3 16.5h13.5m0-13.5L21 7.5m0 0L16.5 12M21 7.5H7.5" />
+                                </svg></span>
+                        </a>
+                    </div>
+                </div>
+                <button type="button" id="closeSwitchModal"
+                    class="absolute right-2 top-2 text-gray-200 bg-gray-600 hover:bg-blue-700 hover:text-gray-100 rounded-2xl text-sm w-8 h-8 inline-flex justify-center items-center dark:hover:bg-blue-600 dark:hover:text-white">
+                    <svg class="w-3 h-3" aria-hidden="true" xmlns="http://www.w3.org/2000/svg" fill="none"
+                        viewBox="0 0 14 14">
+                        <path stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                            d="m1 1 6 6m0 0 6 6M7 7l6-6M7 7l-6 6" />
+                    </svg>
+                    <span class="sr-only">Close modal</span>
+                </button>
+            </div>
+        </div>
+    </div>
     <!-- JavaScript -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/flowbite/2.3.0/flowbite.min.js"></script>
     <script src="https://unpkg.com/@dotlottie/player-component@2.7.12/dist/dotlottie-player.mjs" type="module"></script>
     <script src="app2.js"></script>
     <script>
-        // Drawer toggle functionality
         const menuButton = document.getElementById('menu-button');
         const drawer = document.getElementById('bottom-drawer');
         const overlay = document.getElementById('overlay');
+
+        // Helper function to check if screen is small
+        function isSmallScreen() {
+            return window.innerWidth <= 768;
+        }
+
+        // Helper function to handle footer visibility
+        function handleFooterVisibility(show) {
+            if (!isSmallScreen()) return; // Only manipulate footer on small screens
+
+            if (show) {
+                footerBottom.style.display = 'block';
+                footerBottom.style.animation = 'slideUpFooter 0.6s ease-out forwards';
+            } else {
+                footerBottom.style.display = 'none';
+            }
+        }
 
         menuButton.addEventListener('click', function () {
             if (drawer.classList.contains('open')) {
@@ -420,10 +467,12 @@
                 drawer.classList.remove('fullscreen');
                 drawer.style.bottom = '-80%';
                 overlay.classList.remove('active');
+                handleFooterVisibility(true); // Show footer when drawer closes
             } else {
                 drawer.classList.add('open');
                 drawer.style.bottom = '0%';
                 overlay.classList.add('active');
+                handleFooterVisibility(false); // Hide footer when drawer opens
             }
         });
 
@@ -433,6 +482,7 @@
             drawer.classList.remove('fullscreen');
             drawer.style.bottom = '-80%';
             overlay.classList.remove('active');
+            handleFooterVisibility(true); // Show footer when drawer closes
         });
 
         // Fullscreen drawer on search input focus
@@ -441,6 +491,7 @@
             drawer.classList.add('fullscreen');
             drawer.style.bottom = '0%';
             overlay.classList.add('active');
+            handleFooterVisibility(false); // Hide footer when drawer opens
         });
 
         // Revert drawer to original state on search input blur
@@ -449,8 +500,10 @@
             if (!drawer.classList.contains('open')) {
                 drawer.style.bottom = '-80%';
                 overlay.classList.remove('active');
+                handleFooterVisibility(true); // Show footer when drawer closes
             } else {
                 drawer.style.bottom = '0%';
+                handleFooterVisibility(false); // Keep footer hidden if drawer is still open
             }
         });
 
@@ -461,6 +514,7 @@
                 drawer.classList.remove('fullscreen');
                 drawer.style.bottom = '-80%';
                 overlay.classList.remove('active');
+                handleFooterVisibility(true); // Show footer when drawer closes
             }
         });
 
@@ -479,6 +533,7 @@
             startY = (e.type === 'mousedown' ? e.clientY : e.touches[0].clientY);
             startBottom = parseFloat(getComputedStyle(drawer).bottom) || -80;
             overlay.classList.add('active');
+            handleFooterVisibility(false); // Hide footer when dragging starts
             if (rafId) cancelAnimationFrame(rafId);
         }
 
@@ -519,11 +574,21 @@
                 drawer.classList.remove('fullscreen');
                 drawer.style.bottom = '-80%';
                 overlay.classList.remove('active');
+                handleFooterVisibility(true); // Show footer when drawer closes
             } else {
                 drawer.classList.add('open');
                 drawer.style.bottom = '0%';
+                handleFooterVisibility(false); // Keep footer hidden if drawer stays open
             }
         }
+
+        // Handle window resize to ensure footer is visible on larger screens
+        window.addEventListener('resize', function () {
+            if (!isSmallScreen() && footerBottom.style.display === 'none') {
+                footerBottom.style.display = 'block';
+                footerBottom.style.animation = ''; // Clear animation on larger screens
+            }
+        });
     </script>
 </body>
 
