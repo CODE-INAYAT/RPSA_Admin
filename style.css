@@ -1,0 +1,562 @@
+@import url("https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:ital@0;1&display=swap");
+
+body {
+  font-family: "Plus Jakarta Sans", sans-serif;
+  font-optical-sizing: auto;
+  font-weight: 400;
+  font-style: normal;
+}
+
+/* Custom scrollbar */
+::-webkit-scrollbar {
+  width: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: #f1f1f1;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #888;
+  border-radius: 6px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #555;
+}
+
+/* Chat bubble hover effect */
+.chat-bubble:hover .download-icon {
+  display: flex;
+}
+
+/* Custom layout preservation */
+.h-screen {
+  height: 100vh;
+}
+
+.flex {
+  display: flex;
+}
+
+.flex-col {
+  flex-direction: column;
+}
+
+.flex-1 {
+  flex: 1 1 0%;
+}
+
+.w-1\/3 {
+  width: 33.333333%;
+}
+
+.w-2\/3 {
+  width: 66.666667%;
+}
+
+.w-4\/5 {
+  width: 85%;
+}
+
+.h-4\/5 {
+  height: 85%;
+}
+
+.overflow-hidden {
+  overflow: hidden;
+}
+
+.overflow-y-auto {
+  overflow-y: auto;
+}
+
+/* Custom colors */
+.bg-teal-700 {
+  background-color: #0d9488;
+}
+
+.text-teal-700 {
+  color: #0d9488;
+}
+
+.bg-[#e5ddd5] {
+  background-color: #e5ddd5;
+}
+
+/* Visibility control */
+.hidden {
+  display: none;
+}
+
+/* Drawer styles for small screens */
+@media (max-width: 767px) {
+  .bottom-drawer {
+    position: fixed;
+    bottom: -80%;
+    left: 0;
+    width: 100%;
+    height: 80%;
+    z-index: 50;
+    transition: bottom 0.3s ease-in-out, height 0.3s ease-in-out;
+    background: white;
+    border-top-left-radius: 30px;
+    border-top-right-radius: 30px;
+    box-shadow: 0 -2px 10px rgba(0, 0, 0, 0.2);
+  }
+
+  .bottom-drawer.open {
+    bottom: 0;
+  }
+
+  .bottom-drawer.fullscreen {
+    height: 100%;
+    border-radius: 0;
+  }
+
+  .right-pane {
+    width: 100%;
+  }
+
+  .overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0, 0, 0, 0.5);
+    z-index: 40;
+    display: none;
+  }
+
+  .overlay.active {
+    display: block;
+  }
+
+  .drag-handle {
+    width: 80px;
+    height: 5px;
+    background: #ccc;
+    border-radius: 2.5px;
+    margin: 10px auto;
+    cursor: grab;
+  }
+
+  .drag-handle:active {
+    cursor: grabbing;
+  }
+}
+
+.no-scroll {
+  overflow: hidden;
+}
+
+iframe#docPreviewIframe {
+  width: 100%;
+  height: 100%;
+  border: none;
+}
+
+.hover\:bg-blue-600:hover {
+  background: linear-gradient(128.84deg, #0f6cbd 20.46%, #3c45ab 72.3%);
+}
+
+main {
+  /* Remove height: calc(100vh - 50px); */
+  overflow: hidden;
+  /* Keep to constrain content */
+}
+
+.dynamic-div-height {
+  border-radius: 35px;
+  /* Moved from inline style */
+  height: calc(100vh - 95px);
+  /* Full viewport height minus minimal margins (e.g., 20px top + 20px bottom) */
+  overflow: hidden;
+  /* Prevent scrolling of the div */
+}
+
+.dynamic-ol-height {
+  height: calc(100% - 40px);
+  /* Div height minus padding (40px), search bar (32px), and margins (12px) */
+}
+
+.menu-button {
+  background: linear-gradient(128.84deg, #0f6cbd 20.46%, #3c45ab 72.3%);
+  box-shadow: 0px 4px 10px rgba(0, 0, 0, 0.3);
+  transition: right 0.5s ease-in-out, bottom 0.5s ease-in-out;
+  /* Add bottom transition */
+}
+
+.menu-button.hidden-right {
+  right: -29px;
+  /* Move button off-screen when scrolling down */
+  width: 48px;
+  height: 48px;
+}
+
+.footer-text {
+  display: block;
+  text-align: center;
+  width: 100%;
+}
+
+/* Footer animation using bottom */
+#footerBottom {
+  position: fixed;
+  bottom: 0px;
+  /* Default visible position */
+  width: 100%;
+  transition: bottom 0.5s ease-in-out;
+  /* Match menu button duration */
+  margin: 0;
+  /* Override inline margins */
+  border-top-left-radius: 20px;
+  /* Preserve inline styles */
+  border-top-right-radius: 20px;
+  z-index: 50;
+  /* Ensure footer is above other content */
+}
+
+/* Override Tailwind's .hidden if present */
+#footerBottom.hidden {
+  bottom: -100px;
+  /* Slide footer off-screen */
+  display: block !important;
+  /* Prevent display: none */
+}
+
+@media (min-width: 769px) {
+  #footer-bottom {
+    display: block !important;
+    animation: none !important;
+  }
+}
+
+/*ANIMATION ON WELCOME FOLDER*/
+/*1st animation*/
+#WelcomeFolder {
+  cursor: pointer;
+  filter: drop-shadow(0 10px 20px rgba(0, 0, 0, 0.2));
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+
+  /* Epic entrance animation first, then breathing */
+  animation: epicEntrance 2.5s cubic-bezier(0.68, -0.55, 0.265, 1.55) forwards,
+    breathe 3s ease-in-out 2.5s infinite;
+
+  /* Start invisible and scaled down */
+  opacity: 0;
+  transform: scale(0.3) rotate(-180deg);
+}
+
+#WelcomeFolder:hover {
+  /* Enhanced hover effects */
+  animation: breathe 3s ease-in-out infinite, wiggle 0.6s ease-in-out;
+  filter: drop-shadow(0 15px 30px rgba(255, 117, 1, 0.4))
+    drop-shadow(0 0 20px rgba(255, 117, 1, 0.3));
+  transform: scale(1.1) rotate(2deg);
+}
+
+/* Epic entrance animation - the main show! */
+@keyframes epicEntrance {
+  0% {
+    opacity: 0;
+    transform: scale(0.3) rotate(-180deg);
+    filter: drop-shadow(0 0 0 rgba(255, 117, 1, 0)) blur(10px);
+  }
+
+  25% {
+    opacity: 0.3;
+    transform: scale(0.6) rotate(-90deg);
+    filter: drop-shadow(0 5px 15px rgba(255, 117, 1, 0.3)) blur(5px);
+  }
+
+  50% {
+    opacity: 0.7;
+    transform: scale(0.9) rotate(0deg);
+    filter: drop-shadow(0 10px 25px rgba(255, 117, 1, 0.5)) blur(2px);
+  }
+
+  75% {
+    opacity: 0.9;
+    transform: scale(1.15) rotate(5deg);
+    filter: drop-shadow(0 15px 35px rgba(255, 117, 1, 0.6)) blur(0px);
+  }
+
+  85% {
+    opacity: 1;
+    transform: scale(0.95) rotate(-2deg);
+    filter: drop-shadow(0 12px 30px rgba(255, 117, 1, 0.4)) blur(0px);
+  }
+
+  100% {
+    opacity: 0.9;
+    transform: scale(1) rotate(0deg);
+    filter: drop-shadow(0 10px 20px rgba(0, 0, 0, 0.2)) blur(0px);
+  }
+}
+
+/* Gentle breathing animation - continuous */
+@keyframes breathe {
+  0%,
+  100% {
+    transform: scale(1);
+    opacity: 0.9;
+  }
+
+  50% {
+    transform: scale(1.02);
+    opacity: 1;
+  }
+}
+
+/* Subtle wiggle on hover */
+@keyframes wiggle {
+  0%,
+  100% {
+    transform: scale(1.1) rotate(2deg);
+  }
+
+  25% {
+    transform: scale(1.1) rotate(-1deg);
+  }
+
+  75% {
+    transform: scale(1.1) rotate(3deg);
+  }
+}
+
+/* Add some context text */
+.text {
+  color: white;
+  margin-top: 2rem;
+  font-size: 1.2rem;
+  opacity: 0.8;
+}
+
+/* Additional glow effect for the paths */
+#WelcomeFolder path {
+  transition: all 0.3s ease;
+}
+
+#WelcomeFolder:hover path[fill*="#ff"] {
+  filter: brightness(1.2);
+}
+
+/* Folder lid opening animation - simulating the folder opening */
+#WelcomeFolder path:nth-child(1),
+#WelcomeFolder path:nth-child(2),
+#WelcomeFolder path:nth-child(3),
+#WelcomeFolder path:nth-child(4),
+#WelcomeFolder path:nth-child(5) {
+  animation: folderLidOpen 1.5s ease-out 0.8s both;
+  transform-origin: left center;
+}
+
+/* Papers/contents animation */
+#WelcomeFolder path:nth-child(n + 6) {
+  animation: papersReveal 1.2s ease-out 1.3s both;
+  opacity: 0;
+}
+
+/* Folder lid opening effect */
+@keyframes folderLidOpen {
+  0% {
+    transform: scaleX(0) skewY(-10deg);
+    opacity: 0;
+  }
+
+  50% {
+    transform: scaleX(0.7) skewY(-5deg);
+    opacity: 0.5;
+  }
+
+  100% {
+    transform: scaleX(1) skewY(0deg);
+    opacity: 1;
+  }
+}
+
+/* Papers revealing animation */
+@keyframes papersReveal {
+  0% {
+    opacity: 0;
+    transform: translateY(10px) scale(0.8);
+  }
+
+  60% {
+    opacity: 0.8;
+    transform: translateY(-2px) scale(1.05);
+  }
+
+  100% {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+/* Add sparkle effects */
+.container::before {
+  content: "";
+  position: absolute;
+  width: 100%;
+  height: 100%;
+  background: radial-gradient(
+      circle at 20% 20%,
+      rgba(255, 255, 255, 0.3) 1px,
+      transparent 1px
+    ),
+    radial-gradient(
+      circle at 80% 80%,
+      rgba(255, 255, 255, 0.3) 1px,
+      transparent 1px
+    ),
+    radial-gradient(
+      circle at 40% 40%,
+      rgba(255, 255, 255, 0.3) 1px,
+      transparent 1px
+    );
+  animation: sparkle 3s ease-in-out infinite;
+  pointer-events: none;
+}
+
+@keyframes sparkle {
+  0%,
+  100% {
+    opacity: 0;
+  }
+
+  50% {
+    opacity: 1;
+  }
+}
+
+/* 2nd Animation: Welcome Messages - Start with folder animation */
+#welcomeMsg1,
+#welcomeMsg2 {
+  opacity: 0;
+  transform: translateY(30px);
+  animation: slideUpFade 1.5s ease-out 0.5s forwards;
+}
+
+#welcomeMsg2 {
+  animation-delay: 0.8s;
+}
+
+@keyframes slideUpFade {
+  0% {
+    opacity: 0;
+    transform: translateY(30px);
+  }
+
+  100% {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* 3rd Animation: Footer - After messages */
+#footerBottom {
+  opacity: 0;
+  transform: translateY(100%);
+  animation: slideUpFooter 1s ease-out 2.3s forwards;
+}
+
+@keyframes slideUpFooter {
+  0% {
+    opacity: 0;
+    transform: translateY(100%);
+  }
+
+  100% {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* 4th Animation: Sliding of left subfolder */
+@media (min-width: 768px) {
+  #welcome-message {
+    display: grid;
+    place-items: center;
+    position: fixed;
+    inset: 0;
+    animation: removeMargin 1.2s ease-out 3.5s forwards;
+  }
+
+  #bottom-drawer {
+    opacity: 0;
+    transform: translateX(-100%);
+    animation: slideInLeft 1.2s ease-out 3.5s forwards;
+  }
+}
+
+/* Keyframe for #welcome-message*/
+@keyframes removeMargin {
+  0% {
+    display: grid;
+    place-items: center;
+    position: fixed;
+    inset: 0;
+  }
+
+  100% {
+    display: grid;
+    place-items: center;
+    position: fixed;
+    inset: 0;
+    left: 35%;
+  }
+}
+
+/* Keyframe for #bottom-drawer */
+@keyframes slideInLeft {
+  0% {
+    opacity: 0;
+    transform: translateX(-100%);
+  }
+
+  100% {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+/* 5th Animation: Menu Button - Mobile only, after all previous */
+#menu-button {
+  opacity: 0;
+  transform: scale(0) rotate(180deg);
+  animation: popIn 0.8s cubic-bezier(0.68, -0.55, 0.265, 1.55) 3.5s forwards;
+  transition: all 0.3s ease;
+}
+
+#menu-button:hover {
+  transform: scale(1.05);
+}
+
+@keyframes popIn {
+  0% {
+    opacity: 0;
+    transform: scale(0) rotate(180deg);
+  }
+
+  70% {
+    opacity: 0.8;
+    transform: scale(1.1) rotate(-10deg);
+  }
+
+  100% {
+    opacity: 1;
+    transform: scale(1) rotate(0deg);
+  }
+}
+
+@media (max-width: 768px) {
+  #welcome-message {
+    position: fixed;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    width: 100%;
+  }
+}
