@@ -560,3 +560,23 @@ main {
     width: 100%;
   }
 }
+
+/* Prevnet Click & Hover during animation */
+#loading-overlay {
+  position: fixed;
+  inset: 0; 
+  z-index: 9999; 
+  animation: hide-loading-overlay 4.7s forwards;
+}
+
+@keyframes hide-loading-overlay {
+  0% {
+    visibility: visible;
+  }
+  99.9% {
+    visibility: visible;
+  }
+  100% {
+    visibility: hidden;
+  }
+}
