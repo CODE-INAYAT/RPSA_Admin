@@ -1,8 +1,8 @@
 // Configuration
 const APPS_SCRIPT_URL =
-  "https://script.google.com/macros/s/AKfycbyVI3fTuXOEetJWrM-H4NLthE6z-wjaQot6oUgMYv9mXi6L_GRXCu6Zcucc-zA2Mu6nDA/exec";
+  "https://script.google.com/macros/s/AKfycbypjygGyHpu_18aiLd3U_LZ6zLSGu8bH1suVBiunXC7RatSHkzlsKnJp_Phl1eLFQ/exec";
 
-const ROOT_FOLDER_ID = "1xfnB19Nvk0am-REJr-q9wqLoTAU3S55N";
+const ROOT_FOLDER_ID = "192Ni6mhVSFYvrPTIxW9p6FEo2P0o_ABs";
 const POLLING_INTERVAL = 5000; // Check every 5 seconds
 
 // DOM Elements
@@ -37,6 +37,9 @@ const pinInputs = [
   document.getElementById("code-3"),
   document.getElementById("code-4"),
 ];
+const globalmenuButton = document.getElementById("menu-button");
+const flotingSvg = document.getElementById("flotingSvg");
+const footerBottom = document.getElementById("footerBottom");
 
 // State
 let currentFolderId = null;
@@ -51,6 +54,116 @@ let currentCourse = null;
 let cacheTimestamp = new Date().toDateString();
 let pollingIntervalId = null;
 let expectedPin = null; // To store the PIN extracted from filename
+let currentGoogleDocId = null; // To store the Google Doc ID extracted from filename
+
+// A global object to manage animation timers and prevent overlaps
+const progressAnimation = {
+  textInterval: null,
+  stageTimers: [],
+};
+
+function startProgressAnimation(iframeElement, loadingContainer, onCompletion) {
+  // 1. Clear any leftover animations
+  clearInterval(progressAnimation.textInterval);
+  progressAnimation.stageTimers.forEach(clearTimeout);
+  progressAnimation.stageTimers = [];
+
+  // 2. Display the progress bar HTML.
+  loadingContainer.innerHTML = `
+    <div class="flex flex-col items-center justify-center">
+      <svg class="w-16 h-16" viewBox="0 0 36 36" style="height: 95px; width: 95px;">
+        <path class="circle-bg" d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"
+          fill="none" stroke="#e5e7eb" stroke-width="3"/>
+        <path id="progress-circle" class="circle" stroke-linecap="round" d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"
+          fill="none" stroke="#3b82f6" stroke-width="3"
+          stroke-dasharray="100, 100"
+          stroke-dashoffset="100"/>
+        <text id="progress-text" x="18" y="21.5" font-size="8" text-anchor="middle" fill="#1f2937" class="dark:fill-white font-semibold">0%</text>
+      </svg>
+      <span id="status-text" class="text-gray-600 dark:text-gray-300 mt-3 text-sm font-medium">Connecting...</span>
+    </div>
+  `;
+  loadingContainer.classList.remove("hidden");
+
+  // 3. Get references to the animated elements
+  const circle = document.getElementById("progress-circle");
+  const text = document.getElementById("progress-text");
+  const statusText = document.getElementById("status-text");
+
+  // 4. Set up the CSS transition directly in JS for reliability
+  circle.style.transition =
+    "stroke-dashoffset 1.5s cubic-bezier(0.65, 0, 0.35, 1), stroke 0.6s ease";
+
+  // 5. Helper to animate the circle and text to a target percentage
+  const animateTo = (targetPercent, duration, label) => {
+    const offset = 100 - targetPercent;
+    circle.style.transitionDuration = `${duration / 1000}s`;
+    circle.style.strokeDashoffset = offset;
+
+    const startPercent = parseInt(text.textContent) || 0;
+    const stepCount = 50;
+    const increment = (targetPercent - startPercent) / stepCount;
+    let currentStep = 0;
+
+    clearInterval(progressAnimation.textInterval);
+    progressAnimation.textInterval = setInterval(() => {
+      if (currentStep < stepCount) {
+        text.textContent = `${Math.round(
+          startPercent + increment * currentStep
+        )}%`;
+        currentStep++;
+      } else {
+        text.textContent = `${targetPercent}%`;
+        clearInterval(progressAnimation.textInterval);
+      }
+    }, duration / stepCount);
+
+    if (label) statusText.textContent = label;
+  };
+
+  // 6. Run the animation stages
+  progressAnimation.stageTimers.push(
+    setTimeout(() => animateTo(30, 800, "Requesting file..."), 100)
+  );
+  progressAnimation.stageTimers.push(
+    setTimeout(() => animateTo(85, 4000, "Loading preview..."), 1000)
+  );
+
+  // 7. Listen for the iframe to actually finish loading
+  iframeElement.addEventListener(
+    "load",
+    () => {
+      progressAnimation.stageTimers.forEach(clearTimeout);
+      clearInterval(progressAnimation.textInterval);
+      circle.style.stroke = "#10b981";
+      animateTo(100, 500, "Complete!");
+      setTimeout(onCompletion, 800);
+    },
+    { once: true }
+  );
+}
+
+// Function to adjust main margin-bottom based on footer height
+function adjustMainMargin() {
+  const footer = document.getElementById("footerBottom");
+  const main = document.querySelector("main");
+  const gap = 4; // Gap in pixels between main and footer
+
+  if (footer && main) {
+    if (footer.classList.contains("hidden")) {
+      main.style.marginBottom = "0px"; // No margin when footer is hidden
+    } else {
+      const footerHeight = footer.offsetHeight; // Includes padding, excludes margins
+      main.style.marginBottom = `${footerHeight + gap}px`;
+    }
+  }
+}
+
+// Run on DOM load
+document.addEventListener("DOMContentLoaded", adjustMainMargin);
+
+// Update on window resize
+window.addEventListener("resize", adjustMainMargin);
 
 // Initialize the application
 document.addEventListener("DOMContentLoaded", () => {
@@ -60,9 +173,23 @@ document.addEventListener("DOMContentLoaded", () => {
   setupPinInputListeners();
 });
 
-// Initialize the app
+// Updated initApp to check initial content-list state
 async function initApp() {
   previewModal.classList.add("hidden");
+  const contentList = document.getElementById("content-list");
+  const footer = document.getElementById("footerBottom");
+  const menuButton = document.getElementById("menu-button");
+
+  if (contentList.querySelector("li.mb-10.ms-6.chat-bubble")) {
+    footer.classList.add("hidden");
+    footer.style.bottom = "-100px"; // JavaScript fallback
+    if (menuButton) menuButton.style.bottom = "28px";
+  } else {
+    footer.classList.remove("hidden");
+    footer.style.bottom = "0px"; // JavaScript fallback
+    if (menuButton) menuButton.style.bottom = "80px";
+  }
+  adjustMainMargin();
   try {
     await loadFolders(ROOT_FOLDER_ID);
   } catch (error) {
@@ -91,6 +218,26 @@ function setupEventListeners() {
   folderSearch.addEventListener("input", (e) =>
     filterFolders(e.target.value.toLowerCase())
   );
+
+  // Scroll handling for content-container
+  const contentContainer = document.getElementById("content-container");
+  let lastScrollTop = 0;
+
+  contentContainer.addEventListener("scroll", () => {
+    const menuButton = document.getElementById("menu-button");
+    const currentScrollTop = contentContainer.scrollTop;
+
+    if (currentScrollTop > lastScrollTop) {
+      // Scrolling down
+      menuButton.classList.add("hidden-right");
+      flotingSvg.classList.add("hidden");
+    } else {
+      // Scrolling up
+      menuButton.classList.remove("hidden-right");
+      flotingSvg.classList.remove("hidden");
+    }
+    lastScrollTop = currentScrollTop;
+  });
 }
 
 // Setup PIN input listeners
@@ -113,35 +260,72 @@ function setupPinInputListeners() {
   });
 }
 
-// Check PIN entered by user
 function checkPin() {
   const enteredPin = pinInputs.map((input) => input.value).join("");
-  if (enteredPin.length === 4) {
-    if (enteredPin === expectedPin) {
-      pinContainer.classList.add("hidden");
-      downloadButton.classList.remove("hidden");
-      printButton.classList.remove("hidden");
+  if (enteredPin.length !== 4) return;
+
+  if (enteredPin === expectedPin) {
+    pinContainer.classList.add("hidden");
+    downloadButton.classList.remove("hidden");
+    printButton.classList.remove("hidden");
+    docPreviewIframe.classList.add("hidden");
+
+    const isSmallScreen = window.innerWidth < 768;
+    const fileExtension = previewFilename.textContent
+      .split(".")
+      .pop()
+      .toLowerCase();
+    const hasGoogleDocId = !!currentGoogleDocId;
+
+    const onPreviewLoad = () => {
+      previewLoading.classList.add("hidden");
       docPreviewIframe.classList.remove("hidden");
-      // Reset borders to default
-      pinInputs.forEach((input) => {
-        input.classList.remove("border-red-300");
-        input.classList.add("border-gray-300");
-      });
-    } else {
-      // Show incorrect PIN with red borders
-      incorrectPin.classList.remove("hidden");
-      pinInputs.forEach((input) => {
-        input.classList.remove("border-gray-300");
-        input.classList.add("border-red-300");
-      });
-      // Remove focus from the last input to prevent blue border
-      pinInputs[3].blur();
-      // After 0.5 seconds, hide error and reset inputs
-      setTimeout(() => {
-        incorrectPin.classList.add("hidden");
-        resetPinInputs();
-      }, 500);
+    };
+
+    if (fileExtension === "pdf") {
+      docPreviewIframe.src = `https://drive.google.com/file/d/${currentFileId}/preview`;
+      fileCache[currentFileId] = {
+        blob: docPreviewIframe.src,
+        mimeType: "application/pdf",
+      };
+      startProgressAnimation(docPreviewIframe, previewLoading, onPreviewLoad);
+    } else if (fileExtension === "doc" || fileExtension === "docx") {
+      if (hasGoogleDocId) {
+        docPreviewIframe.src = isSmallScreen
+          ? `https://drive.google.com/file/d/${
+              currentGoogleDocId || currentFileId
+            }/preview`
+          : `https://docs.google.com/document/d/${
+              currentGoogleDocId || currentFileId
+            }/preview?tab=t.0`;
+        fileCache[currentFileId] = {
+          blob: docPreviewIframe.src,
+          mimeType:
+            "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+        };
+        startProgressAnimation(docPreviewIframe, previewLoading, onPreviewLoad);
+      } else {
+        printButton.classList.add("hidden");
+        previewError.classList.remove("hidden");
+        errorMessage.textContent =
+          "Please wait while your file is being downloaded.";
+        setTimeout(() => downloadButton.click(), 100);
+      }
     }
+
+    pinInputs.forEach((input) =>
+      input.classList.replace("border-red-300", "border-gray-300")
+    );
+  } else {
+    incorrectPin.classList.remove("hidden");
+    pinInputs.forEach((input) =>
+      input.classList.replace("border-gray-300", "border-red-300")
+    );
+    pinInputs[3].blur();
+    setTimeout(() => {
+      incorrectPin.classList.add("hidden");
+      resetPinInputs();
+    }, 500);
   }
 }
 
@@ -158,6 +342,7 @@ function resetPinInputs() {
 // Reset preview modal state
 function resetPreviewModal() {
   previewModal.classList.add("hidden");
+  document.body.classList.remove("no-scroll"); // Re-enable page scrolling
   if (currentPreviewUrl) {
     revokeTemporaryAccess(currentFileId).catch((e) =>
       console.error("Failed to revoke temporary access:", e)
@@ -223,7 +408,7 @@ function filterFolders(searchTerm) {
   });
 }
 
-// Load folders from Google Drive
+// Load folders from Database
 async function loadFolders(folderId) {
   if (folderCache[folderId]) {
     renderFolders(folderCache[folderId].content);
@@ -267,13 +452,8 @@ function renderFolders(folders) {
     folderItem.innerHTML = `
       <th scope="row" class="px-6 py-4 font-medium text-gray-900 whitespace-nowrap dark:text-white">
         <div class="flex items-center">
-          <div class="w-10 h-10 bg-gray-200 rounded-full flex items-center justify-center mr-3">
-            <svg class="w-6 h-6 text-gray-500 dark:text-gray-500" aria-hidden="true"
-                xmlns="http://www.w3.org/2000/svg" width="24" height="24" fill="currentColor" viewBox="0 0 24 24">
-                <path fill-rule="evenodd"
-                    d="M3 6a2 2 0 0 1 2-2h5.532a2 2 0 0 1 1.536.72l1.9 2.28H3V6Zm0 3v10a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V9H3Z"
-                    clip-rule="evenodd" />
-            </svg>
+          <div class="w-12 h-12 bg-white shadow-xl rounded-full flex items-center justify-center mr-3">
+          <img src="./Folder_SVG.svg" class="w-8 h-8 shrink-0 alt="Folder Icon"/>
           </div>
           <div class="flex-1">
             <div class="folder-name">${folder.name}</div>
@@ -309,13 +489,13 @@ function renderFolders(folders) {
   });
 }
 
-// Select a folder and load its contents
+// Updated selectFolder to handle empty folders
 async function selectFolder(folderId, folderName, isSubject) {
   currentFolderId = folderId;
   foldersList.querySelectorAll(".folder-item").forEach((item) => {
     item.classList.toggle("bg-gray-100", item.dataset.id === folderId);
   });
-  welcomeMessage.classList.add("hidden");
+  welcomeMessage.remove();
   contentContainer.classList.remove("hidden");
 
   if (folderCache[folderId]) {
@@ -363,25 +543,35 @@ async function selectFolder(folderId, folderName, isSubject) {
   } catch (error) {
     console.error("Error loading content:", error);
     showErrorMessage(contentList, "Failed to load content");
+    footerBottom.classList.remove("hidden");
+    footerBottom.style.bottom = "0px"; // Reset footer
+    const menuButton = document.getElementById("menu-button");
+    if (menuButton) menuButton.style.bottom = "80px";
+    adjustMainMargin();
     stopPolling();
   } finally {
     loadingContent.classList.add("hidden");
   }
 }
 
-// Update breadcrumb with new search bar and category-based filtering
+// Breadcrumb and the search bar
 function updateBreadcrumb(courseName, subjectName = null) {
+  const breadcrumbList = document.getElementById("breadcrumb-list");
+  const searchBarContainer = document.getElementById("search-bar");
   breadcrumbList.innerHTML = "";
+  searchBarContainer.innerHTML = "";
 
+  // Course breadcrumb
   const courseLi = document.createElement("li");
   courseLi.className = "inline-flex items-center";
   courseLi.innerHTML = `
-    <a href="#" class="inline-flex items-center text-sm font-medium text-gray-700 hover:text-blue-600 dark:text-gray-400 dark:hover:text-white">
-      <svg class="w-3 h-3 me-2.5" aria-hidden="true" xmlns="http://www.w3.org/2000/svg" fill="currentColor" viewBox="0 0 20 20">
-        <path d="m19.707 9.293-2-2-7-7a1 1 0 0 0-1.414 0l-7 7-2 2a1 1 0 0 0 1.414 1.414L2 10.414V18a2 2 0 0 0 2 2h3a1 1 0 0 0 1-1v-4a1 1 0 0 1 1-1h2a1 1 0 0 1 1 1v4a1 1 0 0 0 1 1h3a2 2 0 0 0 2-2v-7.586l.293.293a1 1 0 0 0 1.414-1.414Z"/>
-      </svg>
-      ${courseName}
-    </a>
+      <a href="#" class="inline-flex items-center text-sm font-medium text-gray-700 hover:text-blue-800 dark:text-gray-400 dark:hover:text-white">
+      <svg class="w-4 h-4 me-2.5" aria-hidden="true" xmlns="http://www.w3.org/2000/svg" fill="currentColor" viewBox="0 0 48 48">
+        <path
+            d="M39.5,43h-9c-1.381,0-2.5-1.119-2.5-2.5v-9c0-1.105-0.895-2-2-2h-4c-1.105,0-2,0.895-2,2v9c0,1.381-1.119,2.5-2.5,2.5h-9	C7.119,43,6,41.881,6,40.5V21.413c0-2.299,1.054-4.471,2.859-5.893L23.071,4.321c0.545-0.428,1.313-0.428,1.857,0L39.142,15.52	C40.947,16.942,42,19.113,42,21.411V40.5C42,41.881,40.881,43,39.5,43z" />
+    </svg>
+          ${courseName}
+      </a>
   `;
   courseLi.querySelector("a").addEventListener("click", (e) => {
     e.preventDefault();
@@ -390,16 +580,17 @@ function updateBreadcrumb(courseName, subjectName = null) {
   });
   breadcrumbList.appendChild(courseLi);
 
+  // Subject breadcrumb
   if (subjectName) {
     const subjectLi = document.createElement("li");
     subjectLi.innerHTML = `
-      <div class="flex items-center">
-        <svg class="rtl:rotate-180 w-3 h-3 text-gray-400 mx-1" aria-hidden="true" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 6 10">
-          <path stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="m1 9 4-4-4-4"/>
-        </svg>
-        <a href="#" class="ms-1 text-sm font-medium text-gray-700 hover:text-blue-600 md:ms-2 dark:text-gray-400 dark:hover:text-white">${subjectName}</a>
-      </div>
-    `;
+          <div class="flex items-center">
+              <svg class="rtl:rotate-180 w-3 h-3 text-gray-400 mx-1" aria-hidden="true" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 6 10">
+                  <path stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="m1 9 4-4-4-4"/>
+              </svg>
+              <a href="#" class="ms-1 text-sm font-medium text-blue-600 hover:text-blue-800 md:ms-2 dark:text-gray-400 dark:hover:text-white">${subjectName}</a>
+          </div>
+      `;
     subjectLi.querySelector("a").addEventListener("click", (e) => {
       e.preventDefault();
       if (currentFolderId) selectFolder(currentFolderId, subjectName, true);
@@ -407,41 +598,72 @@ function updateBreadcrumb(courseName, subjectName = null) {
     breadcrumbList.appendChild(subjectLi);
   }
 
-  const searchLi = document.createElement("li");
-  searchLi.className = "inline-flex items-center ms-4";
-  searchLi.innerHTML = `
-    <form class="max-w-lg mx-auto">
-      <div class="flex">
-        <label for="category-select" class="sr-only">Category</label>
-        <div class="relative z-0">
-          <select id="category-select" class="cursor-pointer bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-s-lg focus:ring-blue-500 focus:border-blue-500 block p-2.5 dark:bg-gray-700 dark:border-gray-600 dark:placeholder-gray-400 dark:text-white dark:focus:ring-blue-500 dark:focus:border-blue-500" style=" engineers=""border-top-left-radius: 25px; border-bottom-left-radius: 25px;">
-            <option disabled value="">Select Category</option>
-            <option class="cursor-pointer" value="Roll Number">Roll Number</option>
-            <option class="cursor-pointer" value="File ID">File ID</option>
-            <option class="cursor-pointer" value="Experiment No.">Experiment No.</option>
-            <option class="cursor-pointer" value="Time">Time</option>
-            <option class="cursor-pointer" value="Size">Size</option>
-            <option class="cursor-pointer" value="File Type">File Type</option>
-          </select>
-        </div>
-        <div class="relative w-full">
-          <input type="text" id="search-dropdown" class="block p-2.5 w-full z-20 text-sm text-gray-900 bg-gray-50 rounded-e-lg border-s-gray-50 border-s-2 border border-gray-300 focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:border-s-gray-700 dark:border-gray-600 dark:placeholder-gray-400 dark:text-white dark:focus:border-blue-500" placeholder="Search files..." required style="border-top-right-radius: 25px; border-bottom-right-radius: 25px;"/>
-          <button type="submit" class="absolute top-0 end-0 p-2.5 text-sm font-medium h-full text-blue-600">
-            <svg class="w-4 h-4" aria-hidden="true" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 20 20">
-              <path stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="m19 19-4-4m0-7A7 7 0 1 1 1 8a7 7 0 0 1 14 0Z" />
-            </svg>
-            <span class="sr-only">Search</span>
-          </button>
-        </div>
-      </div>
-    </form>
+  // Dropdown options
+  const dropdownOptions = [
+    { value: "Roll Number", display: "Roll Number" },
+    { value: "File ID", display: "File ID" },
+    { value: "Experiment No.", display: "Experiment No." },
+    { value: "Time", display: "Time" },
+    { value: "Size", display: "Size" },
+    { value: "File Type", display: "File Type" },
+  ];
+
+  // Search bar HTML
+  const searchHtml = `
+      <form class="max-w-lg w-full">
+          <div class="flex">
+              <label for="category-select" class="sr-only">Category</label>
+              <div class="relative z-0">
+                  <select id="category-select" class="cursor-pointer bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-s-lg focus:ring-blue-500 focus:border-blue-500 block p-2.5 dark:bg-gray-700 dark:border-gray-600 dark:placeholder-gray-400 dark:text-white dark:focus:ring-blue-500 dark:focus:border-blue-500 ${
+                    window.innerWidth < 768 ? "truncate-select" : ""
+                  }" style="border-top-left-radius: 15px; border-bottom-left-radius: 15px; ${
+    window.innerWidth < 768
+      ? "width: 70px; text-overflow: ellipsis; white-space: nowrap; overflow: hidden;"
+      : ""
+  }">
+                      <option disabled value="">Select Category</option>
+                      ${dropdownOptions
+                        .map(
+                          (opt) =>
+                            `<option class="cursor-pointer" value="${opt.value}">${opt.display}</option>`
+                        )
+                        .join("")}
+                  </select>
+              </div>
+              <div class="relative w-full">
+                  <input type="text" id="search-dropdown" class="block p-2.5 w-full z-20 text-sm text-gray-900 bg-gray-50 rounded-e-lg border-s-gray-50 border-s-2 border border-gray-300 focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:border-s-gray-700 dark:border-gray-600 dark:placeholder-gray-400 dark:text-white dark:focus:border-blue-500" placeholder="Search files..." required style="border-top-right-radius: 15px; border-bottom-right-radius: 15px;"/>
+                  <button type="submit" class="absolute top-0 end-0 p-2.5 text-sm font-medium h-full text-blue-600">
+                  <svg class="w-5 h-5 text-blue-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="size-6">
+  <path stroke-linecap="round" stroke-linejoin="round" d="m21 21-5.197-5.197m0 0A7.5 7.5 0 1 0 5.196 5.196a7.5 7.5 0 0 0 10.607 10.607Z" />
+</svg>
+                      <span class="sr-only">Search</span>
+                  </button>
+              </div>
+          </div>
+      </form>
   `;
-  breadcrumbList.appendChild(searchLi);
 
   // Handle category selection and search
-  let selectedCategory = "Roll Number"; // Default category
-  const categorySelect = document.getElementById("category-select");
-  const searchInput = document.getElementById("search-dropdown");
+  let selectedCategory = "Experiment No."; // Default category
+  let categorySelect, searchInput;
+
+  if (window.innerWidth >= 768) {
+    // Larger screens: Append search bar to breadcrumb list
+    const searchLi = document.createElement("li");
+    searchLi.className = "inline-flex items-center ms-4";
+    searchLi.innerHTML = searchHtml;
+    breadcrumbList.appendChild(searchLi);
+    categorySelect = searchLi.querySelector("#category-select");
+    searchInput = searchLi.querySelector("#search-dropdown");
+    // Ensure search bar is visible
+    searchBarContainer.classList.remove("block");
+    searchBarContainer.classList.add("hidden");
+  } else {
+    // Mobile screens: Append search bar to search-bar container
+    searchBarContainer.innerHTML = searchHtml;
+    categorySelect = searchBarContainer.querySelector("#category-select");
+    searchInput = searchBarContainer.querySelector("#search-dropdown");
+  }
 
   // Set default selected category
   categorySelect.value = selectedCategory;
@@ -449,7 +671,7 @@ function updateBreadcrumb(courseName, subjectName = null) {
   // Update selected category on change
   categorySelect.addEventListener("change", (e) => {
     selectedCategory = e.target.value;
-    filterFiles(searchInput.value, selectedCategory); // Trigger filtering with current input
+    filterFiles(searchInput.value, selectedCategory);
   });
 
   // Search input handling
@@ -458,13 +680,60 @@ function updateBreadcrumb(courseName, subjectName = null) {
   });
 
   // Prevent form submission and trigger search
-  searchLi.querySelector("form").addEventListener("submit", (e) => {
+  const searchForm = categorySelect.closest("form");
+  searchForm.addEventListener("submit", (e) => {
     e.preventDefault();
     filterFiles(searchInput.value, selectedCategory);
   });
+
+  // Search toggle for mobile
+  if (window.innerWidth < 768) {
+    const searchToggle = document.getElementById("search-toggle");
+    const breadcrumbNav = document.querySelector("#subject-header nav");
+
+    const closeSearchBar = () => {
+      searchBarContainer.classList.add("hidden");
+      searchBarContainer.classList.remove("block");
+      breadcrumbNav.classList.remove("hidden");
+      searchToggle.classList.remove("hidden");
+
+      // Remove hash when closing
+      if (window.location.hash === "#search") {
+        history.replaceState("", document.title, window.location.pathname);
+      }
+    };
+
+    searchToggle.addEventListener("click", () => {
+      searchBarContainer.classList.add("block");
+      searchBarContainer.classList.remove("hidden");
+      breadcrumbNav.classList.add("hidden");
+      searchToggle.classList.add("hidden");
+      searchInput.focus();
+
+      // Add hash when opening search
+      window.location.hash = "search";
+    });
+
+    // Close search bar on outside click
+    document.addEventListener("click", (e) => {
+      if (
+        !searchBarContainer.contains(e.target) &&
+        !searchToggle.contains(e.target)
+      ) {
+        closeSearchBar();
+      }
+    });
+
+    // Handle hash change (back button)
+    window.addEventListener("hashchange", () => {
+      if (window.location.hash !== "#search") {
+        closeSearchBar();
+      }
+    });
+  }
 }
 
-// New function to filter files based on selected category
+// Updated filterFiles to handle new class names
 function filterFiles(searchTerm, category) {
   const searchValue = searchTerm.toLowerCase();
   const fileItems = contentList.querySelectorAll(".chat-bubble");
@@ -473,16 +742,16 @@ function filterFiles(searchTerm, category) {
     let textToSearch = "";
     switch (category) {
       case "Roll Number":
-        textToSearch = item
-          .querySelector(".roll-number")
-          .textContent.toLowerCase();
+        textToSearch = item.querySelector("h4").textContent.toLowerCase();
         break;
       case "File ID":
-        textToSearch = item.querySelector("a").textContent.toLowerCase();
+        textToSearch = item
+          .querySelector(".file-year")
+          .textContent.toLowerCase();
         break;
       case "Experiment No.":
         textToSearch = item
-          .querySelector(".experiment-number")
+          .querySelector(".file-exam-semester")
           .textContent.toLowerCase();
         break;
       case "Time":
@@ -540,33 +809,32 @@ function renderSubfolders(subfolders) {
   contentList.classList.remove("pl-4");
 
   contentList.innerHTML = `
-    <div class="p-5 border border-gray-100 rounded-lg bg-white dark:bg-gray-800 dark:border-gray-700">
-      <time class="text-lg font-semibold text-gray-900 dark:text-white"></time>
-      <form class="max-w-md mx-auto mb-3 sticky top-0 z-10">
+    <div class="p-5 border border-gray-100 rounded-lg bg-white dark:bg-gray-800 dark:border-gray-700 shadow-xl dynamic-div-height">
+    <time class="text-lg font-semibold text-gray-900 dark:text-white"></time>
+    <form class="max-w-md mx-auto mb-3 sticky top-0 z-10">
         <label for="subject-search" class="mb-2 text-sm font-medium text-gray-900 sr-only dark:text-white">Search</label>
         <div class="relative">
-          <div class="absolute inset-y-0 start-0 flex items-center ps-3 pointer-events-none">
-            <svg class="w-4 h-4 text-blue-600 dark:text-blue-600" aria-hidden="true" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 20 20">
-              <path stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="m19 19-4-4m0-7A7 7 0 1 1 1 8a7 7 0 0 1 14 0Z"/>
-            </svg>
-          </div>
-          <input type="text" id="subject-search" class="block w-full p-2 ps-10 text-sm text-gray-900 border border-gray-300 rounded-lg bg-gray-50 focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:border-gray-600 dark:placeholder-gray-400 dark:text-white dark:focus:ring-blue-500 dark:focus:border-blue-500" placeholder="Search subjects..." required style="border-radius: 25px;"/>
+            <div class="absolute inset-y-0 start-0 flex items-center ps-3 pointer-events-none">
+                <svg class="w-5 h-5 text-blue-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="size-6">
+  <path stroke-linecap="round" stroke-linejoin="round" d="m21 21-5.197-5.197m0 0A7.5 7.5 0 1 0 5.196 5.196a7.5 7.5 0 0 0 10.607 10.607Z" />
+</svg>
+            </div>
+            <input type="text" id="subject-search" class="block w-full p-2 ps-10 text-sm text-gray-900 border border-gray-300 rounded-lg bg-gray-50 focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:border-gray-600 dark:placeholder-gray-400 dark:text-white dark:focus:ring-blue-500 dark:focus:border-blue-500" placeholder="Search subjects..." required style="border-radius: 15px;"/>
         </div>
-      </form>
-      <ol class="mt-3 divide-y divide-y-gray-200 dark:divide-gray-700 overflow-y-auto" style="height: 415px;"></ol>
-    </div>
+    </form>
+    <ol class="mt-3 divide-y divide-y-gray-200 dark:divide-gray-700 overflow-y-auto dynamic-ol-height"></ol>
+</div>
   `;
   const ol = contentList.querySelector("ol");
   subfolders.forEach((folder) => {
     const subfolderItem = document.createElement("li");
-    subfolderItem.innerHTML = `
-      <a href="#" class="flex items-center p-2 bg-gray-100 hover:bg-blue-600 transform scale-95 transition duration-300 ease-in-out hover:scale-100 group" style="
+    subfolderItem.innerHTML = `<a href="#" class="flex items-center p-2 bg-gray-100 hover:bg-blue-600 transform scale-95 transition duration-300 ease-in-out hover:scale-100 group" style="
     border-radius: 40px;
     margin-top: 5px;
     margin-bottom: 5px;
     margin-right: 7px;">
         <div class="w-12 h-12 bg-gray-200 rounded-full flex-shrink-0 mr-3">
-          <i class="fas fa-folder text-gray-500 w-11 h-11 flex items-center justify-center" style="margin-top: 2px; margin-bottom: 2px; margin-right: 2px; margin-left: 2px;"></i>
+          <img class="w-7 h-7 flex items-center justify-center" src="./Folder_SVG.svg" alt="Folder Icon" style="margin-top: 10px; margin-left: 10px;"/>
         </div>
         <div class="text-base font-normal text-gray-600 dark:text-gray-400 sm:flex-1">
           <span class="font-medium text-gray-900 dark:text-white group-hover:text-gray-200">${folder.name}</span>
@@ -575,13 +843,32 @@ function renderSubfolders(subfolders) {
              xmlns="http://www.w3.org/2000/svg" width="24" height="24" fill="none" viewBox="0 0 24 24">
           <path stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 12H5m14 0-4 4m4-4-4-4" />
         </svg>
-      </a>
-    `;
+      </a>`;
     subfolderItem.querySelector("a").addEventListener("click", (e) => {
       e.preventDefault();
       selectFolder(folder.id, folder.name, true);
     });
     ol.appendChild(subfolderItem);
+  });
+
+  footerBottom.classList.remove("hidden");
+  footerBottom.style.bottom = "0px"; // Reset footer
+  const menuButton = document.getElementById("menu-button");
+  if (menuButton) menuButton.style.bottom = "80px";
+  adjustMainMargin();
+
+  let lastOlScrollTop = 0;
+  ol.addEventListener("scroll", () => {
+    const menuButton = document.getElementById("menu-button");
+    const currentOlScrollTop = ol.scrollTop;
+    if (currentOlScrollTop > lastOlScrollTop) {
+      menuButton.classList.add("hidden-right");
+      flotingSvg.classList.add("hidden");
+    } else {
+      menuButton.classList.remove("hidden-right");
+      flotingSvg.classList.remove("hidden");
+    }
+    lastOlScrollTop = currentOlScrollTop;
   });
 
   document.getElementById("subject-search").addEventListener("input", (e) => {
@@ -658,12 +945,10 @@ async function updateFiles(folderId) {
   }
 }
 
-// Render files in a chat-like format
+// Updated renderFiles to handle new exam type format
 function renderFiles(files) {
-  contentList.classList.add("pl-4");
-
   contentList.innerHTML = `
-    <ol class="p-2 relative border-s border-gray-200 dark:border-gray-700"></ol>
+    <ol class="relative"></ol>
   `;
   const ol = contentList.querySelector("ol");
 
@@ -691,29 +976,84 @@ function renderFiles(files) {
     const seconds = date.getSeconds().toString().padStart(2, "0");
     const ampm = hours >= 12 ? "PM" : "AM";
     hours = hours % 12 || 12;
-    return `${day} ${month} ${year}, ${hours}:${minutes}:${seconds} ${ampm}`;
+    return `${day} ${month} ${year}, ${hours}:${minutes} ${ampm}`;
+  }
+
+  // Function to generate unique gradient based on name
+  function generateGradient(name) {
+    const gradients = [
+      "#7066d4",
+      "#f274a1",
+      "#28c5fe",
+      "#3fefac",
+      "#fb859d",
+      "#35b6b7",
+      "#d5cedc",
+      "#ffb4c8",
+      "#fcc9b5",
+      "#c0a7dd",
+      "#77cfff",
+      "#22c1c3",
+      "#f3b9c4",
+      "#89e2c9",
+      "#d9a9c9",
+    ];
+
+    // Generate hash from name to ensure consistency
+    let hash = 0;
+    for (let i = 0; i < name.length; i++) {
+      const char = name.charCodeAt(i);
+      hash = (hash << 5) - hash + char;
+      hash = hash & hash; // Convert to 32bit integer
+    }
+
+    return gradients[Math.abs(hash) % gradients.length];
   }
 
   files.forEach((file) => {
-    const fileExtension = file.name.split(".").pop().toLowerCase();
-    const rollNumber = file.rollNumber || "Unknown";
-    const fileId = file.fileId || "Unknown";
-    const experimentNumber = file.experimentNumber || "Unknown";
+    const fileExtension =
+      file.extension || file.name.split(".").pop().toLowerCase();
+    const uploaderName = file.uploaderName || "Unknown";
+    const year = file.year || "Unknown";
+    // Format examTypeAndSemester, keeping Resources_* intact
+    const examTypeAndSemester = file.examType.startsWith("Resources_")
+      ? `${file.examType}_${file.semester}`
+      : `${file.examType}_${file.semester}`;
     const time = file.lastUpdated
       ? formatDateTime(file.lastUpdated)
       : "Unknown";
-    const pages = file.pages || "Unknown";
     const size = file.size || "Unknown";
-    const fileType = file.fileType || "Unknown";
+    const fileType = file.googleDocId
+      ? "G DOC"
+      : (file.extension || "Unknown").toUpperCase();
 
-    const pdfIcon = `
-      <svg fill="none" aria-hidden="true" class="w-5 h-5 shrink-0" viewBox="0 0 20 21" style="width: 22px;height: 22px;">
+    // Generate unique gradient for this user's avatar background
+    const userGradient = generateGradient(uploaderName);
+
+    // Create avatar with gradient background
+    const avatarWithGradient = `
+      <div class="w-9 h-9 rounded-full flex items-center justify-center text-white font-semibold text-lg" 
+           style="background: ${userGradient};">
+        ${uploaderName.charAt(0).toUpperCase()}
+      </div>
+    `;
+
+    // Create status indicator with same gradient
+    const statusIndicator = `
+      <div class="absolute -bottom-0.5 -right-0.5 w-3 h-3 border border-white dark:border-gray-700 rounded-full" 
+           style="background: ${userGradient};">
+      </div>
+    `;
+
+    const pdfIcon = `<svg fill="none" aria-hidden="true" class="w-7 h-7 shrink-0 ${
+      window.innerWidth < 768 ? "md:w-7 md:h-7" : ""
+    }" viewBox="0 0 20 21">
         <g clip-path="url(#clip0_3173_1381)">
           <path fill="#E2E5E7" d="M5.024.5c-.688 0-1.25.563-1.25 1.25v17.5c0 .688.562 1.25 1.25 1.25h12.5c.687 0 1.25-.563 1.25-1.25V5.5l-5-5h-8.75z"></path>
           <path fill="#B0B7BD" d="M15.024 5.5h3.75l-5-5v3.75c0 .688.562 1.25 1.25 1.25z"></path>
           <path fill="#CAD1D8" d="M18.774 9.25l-3.75-3.75h3.75v3.75z"></path>
           <path fill="#F15642" d="M16.274 16.75a.627.627 0 01-.625.625H1.899a.627.627 0 01-.625-.625V10.5c0-.344.281-.625.625-.625h13.75c.344 0 .625.281.625.625v6.25z"></path>
-          <path fill="#fff" d="M3.998 12.342c0-.165.13-.345.34-.345h1.154c.65 0 1.235.435 1.235 1.269 0 .79-.585 1.23-1.235 1.23h-.834v.66c0 .22-.14.344-.32.344a.337.337 0 01-.34-.344v-2.814zm.66.284v1.245h.834c.335 0 .6-.295.6-.605 0-.35-.265-.64-.6-.64h-.834zM7.706 15.5c-.165 0-.345-.09-.345-.31v-2.838c0-.18.18-.31.345-.31H8.85c2.284 0 2.234 3.458.045 3.458h-1.19zm.315-2.848v2.239h.83c1.349 0 1.409-2.24 0-2.24h-.83zM11.894 13.486h1.274c.18 0 .36.18.36.355 0 .165-.18.3-.36.3h-1.274v1.049c0 .175-.124.31-.3.31-.22 0-.354-.135-.354-.31v-2.839c0-.18.135-.31.355-.31h1.754c.22 0 .35.13.35.31 0 .16-.13.34-.35.34h-1.455v.795z"></path>
+          <path fill="#fff" d="M3.998 12.342c0-.165.13-.345.34-.345h1.154c.65 0 1.235.435 1.235 1.269 0 .79-.585 1.23-1.235 1.23h-.834v.66c0 .22-.14.344-.32.344a.337.337 0 01-.34-.344v-2.814zm.66.284v1.245h.834c.335 0 .6-.295.6-.605 0-.35-.265-.64-.6-.64h-.834zM7.706 15.5c-.165 0-.345-.09-.345-.31v-2.838c0-.18.18-.31.345-.31H8.85c2.284 0 2.234 3.458.045 3.458h-1.19zm.315-2.848v2.239h.83c1.349 0 1.409-2.24 0-2.24h-.83zM11.894 13.486h1.274c.18 0 .36.18.36.355 0 .165-.18.3-.36.3h-1.274v1.049c0 .175-.124.31-.3.31-.22 0-.354-.135-.354-.31v-2.839c0-.18.135-.31 .355-.31h1.754c.2 0 .35 .1 .35 .3 0 .2-.15 .3-.35 .3h-1.455v.795"></path>
           <path fill="#CAD1D8" d="M15.649 17.375H3.774V18h11.875a.627.627 0 00.625-.625v-.625a.627.627 0 01-.625.625z"></path>
         </g>
         <defs>
@@ -721,68 +1061,86 @@ function renderFiles(files) {
             <path fill="#fff" d="M0 0h20v20H0z" transform="translate(0 .5)"></path>
           </clipPath>
         </defs>
-      </svg>
-    `;
-    const docIcon = `<img src="./MsWord_SVG.svg" class="w-5 h-5 shrink-0" alt="Document Icon" />`;
-    const googleDocIcon = `<img src="./GoogleDoc_SVG.svg" class="w-5 h-5 shrink-0" alt="Document Icon" style="width: 22px;height: 22px;"/>`;
+      </svg>`;
+    const docIcon = `<img src="./MsWord_SVG.svg" class="w-7 h-7 shrink-0 ${
+      window.innerWidth < 768 ? "md:w-7 md:h-7" : ""
+    }" alt="Document Icon" />`;
+    const googleDocIcon = `<img src="./GoogleDoc_SVG.svg" class="w-7 h-7 shrink-0 ${
+      window.innerWidth < 768 ? "md:w-7 md:h-7" : ""
+    }" alt="Document Icon" />`;
 
-    // Check if the file has a Google Doc ID in its name
-    const hasGoogleDocId = file.name.includes("{") && file.name.includes("}");
-
-    // Use the appropriate icon and values based on whether it's a Google Doc-linked file
+    const hasGoogleDocId = !!file.googleDocId;
     const icon =
       fileType === "PDF" ? pdfIcon : hasGoogleDocId ? googleDocIcon : docIcon;
     const displaySize = hasGoogleDocId ? "Uploaded Through Link" : size;
-    const displayFileType = hasGoogleDocId ? "G DOC" : fileType;
 
     const chatBubble = document.createElement("li");
-    chatBubble.className = "mb-10 ms-6 chat-bubble";
-    chatBubble.innerHTML = `
-      <span class="absolute flex items-center justify-center w-7 h-7 bg-blue-100 rounded-full -start-3 ring-8 ring-white dark:ring-gray-900 dark:bg-blue-900 text-sm font-medium text-gray-900 dark:text-white roll-number">
-        ${rollNumber}
-      </span>
-      <div class="p-4 bg-white border border-gray-200 rounded-lg shadow-xs dark:bg-gray-700 dark:border-gray-600 cursor-pointer relative group" style="border-radius: 30px;">
+    chatBubble.className = "mb-10 chat-bubble";
+    chatBubble.innerHTML = `      
+      <!-- Profile Section -->
+      <div class="mb-3 flex items-center gap-3">
+        <div class="relative">
+          ${avatarWithGradient}
+          ${statusIndicator}
+        </div>
+        <div class="flex-1">
+          <p class="text-xs text-gray-500 dark:text-gray-400">Uploaded By</p>
+          <h4 class="text-sm font-semibold text-gray-900 dark:text-white">${uploaderName}</h4>
+        </div>
+      </div>
+
+      <!-- Chat Bubble Content -->
+      <div class="p-4 ms-8 bg-white border border-gray-200 rounded-lg shadow-lg dark:bg-gray-700 dark:border-gray-600 cursor-pointer relative group min-h-fit" style="border-radius: 35px;">
         <div class="items-center justify-between mb-3 sm:flex">
-          <time class="mb-1 text-xs font-normal text-gray-400 sm:order-last sm:mb-0"><span class="bg-blue-100 text-blue-800 text-xs font-medium inline-flex items-center px-2.5 py-0.5 rounded-sm dark:bg-gray-700 dark:text-blue-400 border border-blue-400" style="border-radius: 30px;">
-<svg class="w-2.5 h-2.5 me-1.5" aria-hidden="true" xmlns="http://www.w3.org/2000/svg" fill="currentColor" viewBox="0 0 20 20">
-<path d="M10 0a10 10 0 1 0 10 10A10.011 10.011 0 0 0 10 0Zm3.982 13.982a1 1 0 0 1-1.414 0l-3.274-3.274A1.012 1.012 0 0 1 9 10V6a1 1 0 0 1 2 0v3.586l2.982 2.982a1 1 0 0 1 0 1.414Z"/>
-</svg>
-${time}
-</span></time>
-          <div class="text-sm font-normal text-gray-500 lex dark:text-gray-300">
-            <a href="#" class="font-semibold text-gray-900 dark:text-white hover:underline">${fileId}</a>
+          <time class="mb-1 text-xs font-normal text-gray-400 sm:order-last sm:mb-0">
+            <span class="bg-blue-100 text-blue-800 text-xs font-medium inline-flex items-center px-2.5 py-0.5 rounded-sm dark:bg-gray-700 dark:text-blue-400 border border-blue-400" style="border-radius: 30px;">
+              <svg class="w-2.5 h-2.5 me-1.5" aria-hidden="true" xmlns="http://www.w3.org/2000/svg" fill="currentColor" viewBox="0 0 20 20">
+                <path d="M10 0a10 10 0 1 0 10 10A10.011 10.011 0 0 0 10 0Zm3.982 13.982a1 1 0 0 1-1.414 0l-3.274-3.274A1.012 1.012 0 0 1 9 10V6a1 1 0 0 1 2 0v3.586l2.982 2.982a1 1 0 0 1 0 1.414Z"/>
+              </svg>
+              ${time}
+            </span>
+          </time>
+          <div class="text-sm font-normal text-gray-500 dark:text-gray-300 ${
+            window.innerWidth < 768 ? "pt-3" : ""
+          }">
+            <a href="#" class="file-year font-semibold text-gray-900 dark:text-white hover:underline">${year}</a>
           </div>
         </div>
-        <div class="p-3 text-xs italic font-normal text-gray-500 border border-gray-200 rounded-lg bg-gray-50 dark:bg-gray-600 dark:border-gray-500 dark:text-gray-300" style="border-radius: 30px;">
+        <div class="p-3 mb-2 text-xs italic font-normal text-gray-500 border border-gray-200 rounded-lg bg-gray-50 dark:bg-gray-600 dark:border-gray-500 dark:text-gray-300 min-h-fit" style="border-radius: 30px;">
           <div class="flex items-start gap-2.5">
             <div class="flex flex-col gap-2.5">
-              <div class="leading-1.5 flex w-full max-w-[400px] flex-col">
-                <div class="flex items-start bg-gray-50 dark:bg-gray-700 rounded-xl p-2" style="height: 76px; width: 216px; padding-top: 10px;">
-                  <div class="me-2">
-                    <span class="flex items-center gap-2 text-sm font-medium text-gray-900 dark:text-white pb-2">
+              <div class="leading-1.5 flex w-full ${
+                window.innerWidth < 768 ? "max-w-xs" : "max-w-md"
+              } flex-col">
+                <div class="flex items-start bg-gray-50 dark:bg-gray-700 rounded-xl p-2 h-auto w-full md:w-auto" style="border-radius: 15px;">
+                  <div class="me-2 flex-1">
+                    <span class="flex items-center gap-2 text-sm font-medium text-gray-900 dark:text-white pb-2 flex-wrap">
                       ${icon}
-                      <span class="experiment-number">${experimentNumber}</span>
+                      <span class="file-exam-semester break-all">${examTypeAndSemester}</span>
                     </span>
-                    <span class="flex text-xs font-normal text-gray-500 dark:text-gray-400 gap-2">
+                    <span class="flex text-xs font-normal text-gray-500 dark:text-gray-400 gap-2 flex-wrap">
                       <span class="file-size">${displaySize}</span>
                       <svg xmlns="http://www.w3.org/2000/svg" aria-hidden="true" class="self-center" width="3" height="4" viewBox="0 0 3 4" fill="none">
                         <circle cx="1.5" cy="2" r="1.5" fill="#6B7280"></circle>
                       </svg>
-                      <span class="file-type">${displayFileType}</span>
+                      <span class="file-type">${fileType}</span>
                     </span>
                   </div>
                 </div>
               </div>
             </div>
-            <button class="absolute top-2 right-2 hidden group-hover:block text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-200" onclick="downloadFileFromGDrive('${file.id}', '${file.name}')">
+            <button class="absolute top-2 right-2 hidden group-hover:block text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-200" onclick="downloadFileFromGDrive('${
+              file.id
+            }', '${file.course}_${file.examType}_${file.semester}(${
+      file.year
+    }).${file.extension}')">
               <svg class="w-5 h-5" aria-hidden="true" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
                 <path stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 15v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2M12 4v12m0 0-4-4m4 4 4-4"/>
               </svg>
             </button>
           </div>
         </div>
-      </div>
-    `;
+      </div>`;
 
     chatBubble.querySelector("a").addEventListener("click", (e) => {
       e.preventDefault();
@@ -795,145 +1153,109 @@ ${time}
     });
     ol.appendChild(chatBubble);
   });
+
+  footerBottom.classList.add("hidden");
+  footerBottom.style.bottom = "-100px";
+  const menuButton = document.getElementById("menu-button");
+  if (menuButton) menuButton.style.bottom = "28px";
+  adjustMainMargin();
 }
 
-// Open file preview modal with PIN handling
-// State (add this line near the top with other global variables)
-let currentGoogleDocId = null; // To store the Google Doc ID extracted from filename
-
-// Open file preview modal with PIN handling
+// Updated openFilePreview function using the reusable animation helper
 async function openFilePreview(file) {
-  currentFileId = file.id;
-  const fileName = file.name;
-
-  // Extract components from filename using regex
-  const filePattern =
-    /(\d+)_([A-Za-z0-9_]+)\s*\[([A-Za-z0-9]+)\](?:_(\d{4}))?(?:\{([A-Za-z0-9_-]+)\})?\.([a-zA-Z]+)/;
-  const match = fileName.match(filePattern);
-  let googleDocId = null;
-  let displayName = fileName;
-
-  if (match) {
-    const [, rollNumber, experiment, fileId, pin, docId, extension] = match;
-    expectedPin = pin || null; // PIN like "2905" or null if not present
-    googleDocId = docId || null; // Google Doc ID like "1H48XJ0dwG80RShyLxMS8WNXlKaYyF4WyEA9b_P1l9EQ"
-    currentGoogleDocId = googleDocId; // Store globally for print/download
-    displayName = `${rollNumber}_${experiment} [${fileId}].${extension}`; // e.g., "24_EXP3_IAI [S3354].doc"
-  } else {
-    currentGoogleDocId = null; // Reset if no match
-  }
-
-  previewFilename.textContent = displayName;
-  previewModal.classList.remove("hidden");
-  pdfContainer.classList.add("hidden");
-  docxContainer.classList.add("hidden");
-  docPreviewIframe.classList.add("hidden");
-  previewError.classList.add("hidden");
-  previewLoading.classList.remove("hidden");
-  docPreviewIframe.src = "";
-  currentFileBlob = null;
-
-  const fileExtension = fileName.split(".").pop().toLowerCase();
-
-  // Handle PIN protection
-  if (expectedPin) {
-    downloadButton.classList.add("hidden");
-    printButton.classList.add("hidden");
-    docPreviewIframe.classList.add("hidden");
-    pinContainer.classList.remove("hidden");
-    incorrectPin.classList.add("hidden");
-    resetPinInputs();
-    previewLoading.classList.add("hidden");
-
-    // Load preview but keep iframe hidden until PIN is correct
-    try {
-      if (fileCache[file.id]) {
-        currentFileBlob = fileCache[file.id].blob;
-        if (fileExtension === "pdf") {
-          docPreviewIframe.src = currentFileBlob;
-        } else if (fileExtension === "doc" || fileExtension === "docx") {
-          docPreviewIframe.src = `https://docs.google.com/document/d/${
-            googleDocId || file.id
-          }/preview?tab=t.0`;
-        }
-      } else {
-        if (fileExtension === "pdf") {
-          await previewPdfFile(file);
-        } else if (fileExtension === "doc" || fileExtension === "docx") {
-          await previewDocFile(file, googleDocId);
-        } else {
-          showPreviewError("Unsupported file type");
-          return;
-        }
-      }
-    } catch (error) {
-      console.error("Error preparing file preview:", error);
-      showPreviewError("Error loading file");
-    }
-  } else {
-    // No PIN required
-    pinContainer.classList.add("hidden");
-    try {
-      if (fileCache[file.id]) {
-        currentFileBlob = fileCache[file.id].blob;
-        if (fileExtension === "pdf") {
-          printButton.classList.add("hidden");
-          docPreviewIframe.src = currentFileBlob;
-        } else if (fileExtension === "doc" || fileExtension === "docx") {
-          printButton.classList.remove("hidden");
-          docPreviewIframe.src = `https://docs.google.com/document/d/${
-            googleDocId || file.id
-          }/preview?tab=t.0`;
-        }
-        previewLoading.classList.add("hidden");
-        docPreviewIframe.classList.remove("hidden");
-      } else {
-        if (fileExtension === "pdf") {
-          printButton.classList.add("hidden");
-          await previewPdfFile(file);
-        } else if (fileExtension === "doc" || fileExtension === "docx") {
-          printButton.classList.remove("hidden");
-          await previewDocFile(file, googleDocId);
-        } else {
-          printButton.classList.remove("hidden");
-          showPreviewError("Unsupported file type");
-        }
-      }
-    } catch (error) {
-      console.error("Error opening file preview:", error);
-      showPreviewError("Error loading file");
-    }
-  }
-}
-
-// Preview PDF file using data URI
-async function previewPdfFile(file) {
   try {
-    const fileContent = await fetchFileContent(file.id);
-    if (!fileContent) throw new Error("Failed to fetch file content");
-    currentFileBlob = `data:application/pdf;base64,${fileContent}`;
-    fileCache[file.id] = { blob: currentFileBlob, mimeType: "application/pdf" };
-    console.log(`${file.name} cached`);
-    docPreviewIframe.src = currentFileBlob;
-    docPreviewIframe.addEventListener(
-      "load",
-      () => {
-        previewLoading.classList.add("hidden");
-        if (!expectedPin) docPreviewIframe.classList.remove("hidden");
-      },
-      { once: true }
-    );
+    // 1.Initial UI and Data Setup
+    currentFileId = file.id;
+    const fileExtension =
+      file.extension || file.name.split(".").pop().toLowerCase();
+    const displayName = file.examType.startsWith("Resources_")
+      ? `${file.course}_${file.examType}_${file.semester}(${file.year}).${fileExtension}`
+      : `${file.course}_${file.examType}_${file.semester}(${file.year}).${fileExtension}`;
+
+    expectedPin = null;
+    currentGoogleDocId = file.googleDocId || null;
+    currentFileBlob = null;
+    docPreviewIframe.src = ""; // Clear previous content
+
+    // Set up the modal state
+    previewFilename.textContent = displayName;
+    previewModal.classList.remove("hidden");
+    document.body.classList.add("no-scroll");
+
+    // Hide all content containers initially
+    pdfContainer.classList.add("hidden");
+    docxContainer.classList.add("hidden");
+    docPreviewIframe.classList.add("hidden");
+    previewError.classList.add("hidden");
+    pinContainer.classList.add("hidden");
+
+    // 2.Determine File Source and Handle Special Cases
+    const isSmallScreen = window.innerWidth < 768;
+    const hasGoogleDocId = !!file.googleDocId;
+    let iframeSrc = null;
+    let mimeType = null;
+
+    if (fileExtension === "pdf") {
+      iframeSrc = `https://drive.google.com/file/d/${file.id}/preview`;
+      mimeType = "application/pdf";
+      printButton.classList.add("hidden"); // PDFs are not directly printable from preview
+    } else if (fileExtension === "doc" || fileExtension === "docx") {
+      if (hasGoogleDocId) {
+        iframeSrc = isSmallScreen
+          ? `https://drive.google.com/file/d/${
+              file.googleDocId || file.id
+            }/preview`
+          : `https://docs.google.com/document/d/${
+              file.googleDocId || file.id
+            }/preview?tab=t.0`;
+        mimeType =
+          fileExtension === "doc"
+            ? "application/msword"
+            : "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
+        printButton.classList.remove("hidden");
+      } else {
+        // This is a special case: a DOCX without a preview ID. Force download.
+        previewError.classList.remove("hidden");
+        errorMessage.textContent =
+          "Please wait while your file is being downloaded.";
+        setTimeout(() => downloadButton.click(), 100);
+        return; // Stop further execution
+      }
+    } else {
+      showPreviewError("Unsupported file type");
+      return; // Stop further execution
+    }
+
+    // 3.Initiate Loading with Animation
+    docPreviewIframe.src = iframeSrc;
+
+    // Update cache if the item is not already there
+    if (!fileCache[file.id]) {
+      fileCache[file.id] = { blob: iframeSrc, mimeType: mimeType };
+      console.log(`${displayName} cached`);
+    }
+
+    // Define what happens after the preview successfully loads and animation completes
+    const onPreviewLoad = () => {
+      previewLoading.classList.add("hidden");
+      docPreviewIframe.classList.remove("hidden");
+    };
+
+    // Kick off animation!
+    startProgressAnimation(docPreviewIframe, previewLoading, onPreviewLoad);
   } catch (error) {
-    console.error("Error previewing PDF:", error);
-    showPreviewError("Error loading PDF");
+    console.error("Error opening file preview:", error);
+    showPreviewError("Error loading file");
   }
 }
 
 // Preview DOC/DOCX file using Google Docs preview
-async function previewDocFile(file, googleDocId = null) {
+async function previewDocFile(file, googleDocId = null, isMobile = false) {
   try {
-    const docId = googleDocId || file.id; // Use Google Doc ID from filename if available, otherwise fallback to file.id
-    docPreviewIframe.src = `https://docs.google.com/document/d/${docId}/preview?tab=t.0`;
+    const docId = googleDocId || file.id;
+    docPreviewIframe.src = `https://docs.google.com/document/d/${docId}/preview?tab=t.0${
+      isMobile ? "&mobilebasic=0&hl=en" : ""
+    }`;
     fileCache[file.id] = {
       blob: docPreviewIframe.src,
       mimeType: file.mimeType,
@@ -943,13 +1265,46 @@ async function previewDocFile(file, googleDocId = null) {
       "load",
       () => {
         previewLoading.classList.add("hidden");
-        if (!expectedPin) docPreviewIframe.classList.remove("hidden");
+        if (!expectedPin && !isMobile) {
+          docPreviewIframe.classList.remove("hidden");
+        } else if (isMobile && !expectedPin) {
+          previewError.classList.remove("hidden");
+          errorMessage.innerHTML =
+            'File preview not available on mobile. Use the <svg class="inline-block w-5 h-5 text-gray-800 group-hover:text-blue-700 dark:text-white" aria-hidden="true" xmlns="http://www.w3.org/2000/svg" width="20" height="20" fill="currentColor" viewBox="0 0 24 24"> <path fill-rule="evenodd" d="M8 3a2 2 0 0 0-2 2v3h12V5a2 2 0 0 0-2-2H8Zm-3 7a2 2 0 0 0-2 2v5a2 2 0 0 0 2 2h1v-4a1 1 0 0 1 1-1h10a1 1 0 0 1 1 1v4h1a2 2 0 0 0 2-2v-5a2 2 0 0 0-2-2H5Zm4 11a1 1 0 0 1-1-1v-4h8v4a1 1 0 0 1-1 1H9Z" clip-rule="evenodd"></path> </svg> button to preview the file.';
+          docPreviewIframe.classList.add("hidden");
+          printButton.click(); // Auto-trigger print only if no PIN
+        }
       },
       { once: true }
     );
   } catch (error) {
     console.error("Error previewing DOC file:", error);
     showPreviewError("Error loading document");
+  }
+}
+
+async function previewPdfFile(file) {
+  try {
+    docPreviewIframe.src = `https://drive.google.com/file/d/${file.id}/preview`;
+    fileCache[file.id] = {
+      blob: docPreviewIframe.src,
+      mimeType: "application/pdf",
+    };
+    console.log(`${file.name} cached`);
+
+    // Define what to do when the preview is fully loaded and animated
+    const onPreviewLoad = () => {
+      previewLoading.classList.add("hidden");
+      if (!expectedPin) {
+        docPreviewIframe.classList.remove("hidden");
+      }
+    };
+
+    // Kick off the animation
+    startProgressAnimation(docPreviewIframe, previewLoading, onPreviewLoad);
+  } catch (error) {
+    console.error("Error previewing PDF:", error);
+    showPreviewError("Error loading PDF");
   }
 }
 
@@ -1018,7 +1373,7 @@ async function downloadFile() {
   // Store the original button content
   const originalButtonContent = downloadButton.innerHTML;
 
-  // Replace button content with spinner
+  // Show spinner
   downloadButton.innerHTML = `
     <div role="status">
       <svg aria-hidden="true" class="w-6 h-6 text-gray-200 animate-spin dark:text-gray-600 fill-blue-600" viewBox="0 0 100 101" fill="none" xmlns="http://www.w3.org/2000/svg">
@@ -1030,69 +1385,147 @@ async function downloadFile() {
   `;
   downloadButton.disabled = true; // Disable button to prevent multiple clicks
 
-  if (currentGoogleDocId) {
-    // Use Google Doc ID for download if available
-    try {
-      const response = await fetch(
-        `https://docs.google.com/document/d/${currentGoogleDocId}/export?format=docx`
-      );
-      if (!response.ok)
-        throw new Error(`HTTP error! status: ${response.status}`);
-      const blob = await response.blob();
-      const downloadLink = document.createElement("a");
-      downloadLink.href = URL.createObjectURL(blob);
-      downloadLink.download = previewFilename.textContent; // Use cleaned filename, e.g., "24_EXP3_IAI [S3354].doc"
-      document.body.appendChild(downloadLink);
-      downloadLink.click();
-      document.body.removeChild(downloadLink);
-    } catch (error) {
-      console.error("Error downloading Google Doc:", error);
-      alert("Failed to download file. Please try again.");
-    } finally {
-      // Restore original button content
-      downloadButton.innerHTML = originalButtonContent;
-      downloadButton.disabled = false;
+  try {
+    const fileExtension = previewFilename.textContent
+      .split(".")
+      .pop()
+      .toLowerCase();
+    let downloadUrl;
+
+    if (
+      currentGoogleDocId &&
+      (fileExtension === "doc" || fileExtension === "docx")
+    ) {
+      // Use Google Doc ID for DOC/DOCX files with Google Doc ID
+      downloadUrl = `https://docs.google.com/document/d/${currentGoogleDocId}/export?format=docx`;
+    } else if (currentFileId) {
+      // Use Google Drive direct download for PDFs or DOC/DOCX without Google Doc ID
+      downloadUrl = `https://drive.usercontent.google.com/download?id=${currentFileId}&export=download`;
+    } else {
+      throw new Error("No valid file ID or Google Doc ID available");
     }
-  } else if (currentFileId) {
-    // Fallback to existing download logic
-    try {
-      await downloadFileFromGDrive(currentFileId, previewFilename.textContent);
-    } finally {
-      // Restore original button content
-      downloadButton.innerHTML = originalButtonContent;
-      downloadButton.disabled = false;
-    }
+
+    // Create a download link with renamed file
+    const downloadLink = document.createElement("a");
+    downloadLink.href = downloadUrl;
+    downloadLink.download = previewFilename.textContent; // e.g., "course_examType_semester(year).extension"
+    document.body.appendChild(downloadLink);
+
+    // Trigger download and wait briefly to ensure browser initiates it
+    downloadLink.click();
+    await new Promise((resolve) => setTimeout(resolve, 100)); // Short delay to approximate download start
+    document.body.removeChild(downloadLink);
+
+    // Show checkmark with animation
+    downloadButton.innerHTML = `
+      <svg fill="#259d49" version="1.1" id="Capa_1" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" viewBox="0 0 342.508 342.508" xml:space="preserve" stroke="#259d49" class="w-6 h-6 animate-checkmark">
+        <g id="SVGRepo_bgCarrier" stroke-width="0"></g>
+        <g id="SVGRepo_tracerCarrier" stroke-linecap="round" stroke-linejoin="round"></g>
+        <g id="SVGRepo_iconCarrier">
+          <g>
+            <path d="M171.254,0C76.837,0,0.003,76.819,0.003,171.248c0,94.428,76.829,171.26,171.251,171.26 c94.438,0,171.251-76.826,171.251-171.26C342.505,76.819,265.697,0,171.254,0z M245.371,136.161l-89.69,89.69 c-2.693,2.69-6.242,4.048-9.758,4.048c-3.543,0-7.059-1.357-9.761-4.048l-39.007-39.007c-5.393-5.398-5.393-14.129,0-19.521 c5.392-5.392,14.123-5.392,19.516,0l29.252,29.262l79.944-79.948c5.381-5.386,14.111-5.386,19.504,0 C250.764,122.038,250.764,130.769,245.371,136.161z"></path>
+          </g>
+        </g>
+      </svg>
+      <style>
+        @keyframes checkmark {
+          0% { opacity: 0; transform: scale(0); }
+          50% { opacity: 1; transform: scale(1.2); }
+          100% { opacity: 1; transform: scale(1); }
+        }
+        .animate-checkmark {
+          animation: checkmark 0.3s ease-in-out forwards;
+        }
+      </style>
+    `;
+    setTimeout(() => {
+      // Restore original button content with fade-in effect
+      downloadButton.innerHTML = `
+        <div style="opacity: 0; transition: opacity 0.3s ease-in-out;">
+          ${originalButtonContent}
+        </div>
+      `;
+      setTimeout(() => {
+        downloadButton.querySelector("div").style.opacity = "1";
+      }, 50);
+    }, 1000); // Show checkmark for 1000ms
+  } catch (error) {
+    console.error("Error initiating download:", error);
+    alert("Failed to initiate download. Please try again.");
+  } finally {
+    // Ensure button is re-enabled
+    downloadButton.disabled = false;
   }
 }
 
 // Download a file from Google Drive
 async function downloadFileFromGDrive(fileId, fileName) {
+  // Store the original button content
+  const originalButtonContent = downloadButton.innerHTML;
+
+  // Show spinner
+  downloadButton.innerHTML = `
+    <div role="status">
+      <svg aria-hidden="true" class="w-6 h-6 text-gray-200 animate-spin dark:text-gray-600 fill-blue-600" viewBox="0 0 100 101" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <path d="M100 50.5908C100 78.2051 77.6142 100.591 50 100.591C22.3858 100.591 0 78.2051 0 50.5908C0 22.9766 22.3858 0.59082 50 0.59082C77.6142 0.59082 100 22.9766 100 50.5908ZM9.08144 50.5908C9.08144 73.1895 27.4013 91.5094 50 91.5094C72.5987 91.5094 90.9186 73.1895 90.9186 50.5908C90.9186 27.9921 72.5987 9.67226 50 9.67226C27.4013 9.67226 9.08144 27.9921 9.08144 50.5908Z" fill="currentColor"/>
+        <path d="M93.9676 39.0409C96.393 38.4038 97.8624 35.9116 97.0079 33.5539C95.2932 28.8227 92.871 24.3692 89.8167 20.348C85.8452 15.1192 80.8826 10.7238 75.2124 7.41289C69.5422 4.10194 63.2754 1.94025 56.7698 1.05124C51.7666 0.367541 46.6976 0.446843 41.7345 1.27873C39.2613 1.69328 37.813 4.19778 38.4501 6.62326C39.0873 9.04874 41.5694 10.4717 44.0505 10.1071C47.8511 9.54855 51.7191 9.52689 55.5402 10.0491C60.8642 10.7766 65.9928 12.5457 70.6331 15.2552C75.2735 17.9648 79.3347 21.5619 82.5849 25.841C84.9175 28.9121 86.7997 32.2913 88.1811 35.8758C89.083 38.2158 91.5421 39.6781 93.9676 39.0409Z" fill="currentFill"/>
+      </svg>
+      <span class="sr-only">Loading...</span>
+    </div>
+  `;
+  downloadButton.disabled = true; // Disable button to prevent multiple clicks
+
   try {
-    const content = await fetchFileContent(fileId);
-    if (!content) throw new Error("Failed to fetch file content");
-    const byteCharacters = atob(content);
-    const byteNumbers = new Array(byteCharacters.length);
-    for (let i = 0; i < byteCharacters.length; i++) {
-      byteNumbers[i] = byteCharacters.charCodeAt(i);
-    }
-    const byteArray = new Uint8Array(byteNumbers);
-    const fileExtension = fileName.split(".").pop().toLowerCase();
-    const mimeType =
-      {
-        pdf: "application/pdf",
-        doc: "application/msword",
-        docx: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-      }[fileExtension] || "application/octet-stream";
-    const blob = new Blob([byteArray], { type: mimeType });
+    const downloadUrl = `https://drive.usercontent.google.com/download?id=${fileId}&export=download`;
     const downloadLink = document.createElement("a");
-    downloadLink.href = URL.createObjectURL(blob);
+    downloadLink.href = downloadUrl;
     downloadLink.download = fileName;
     document.body.appendChild(downloadLink);
+
+    // Trigger download and wait briefly to ensure browser initiates it
     downloadLink.click();
+    await new Promise((resolve) => setTimeout(resolve, 100));
     document.body.removeChild(downloadLink);
+
+    // Show checkmark with animation
+    downloadButton.innerHTML = `
+      <svg fill="#259d49" version="1.1" id="Capa_1" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" viewBox="0 0 342.508 342.508" xml:space="preserve" stroke="#259d49" class="w-6 h-6 animate-checkmark">
+        <g id="SVGRepo_bgCarrier" stroke-width="0"></g>
+        <g id="SVGRepo_tracerCarrier" stroke-linecap="round" stroke-linejoin="round"></g>
+        <g id="SVGRepo_iconCarrier">
+          <g>
+            <path d="M171.254,0C76.837,0,0.003,76.819,0.003,171.248c0,94.428,76.829,171.26,171.251,171.26 c94.438,0,171.251-76.826,171.251-171.26C342.505,76.819,265.697,0,171.254,0z M245.371,136.161l-89.69,89.69 c-2.693,2.69-6.242,4.048-9.758,4.048c-3.543,0-7.059-1.357-9.761-4.048l-39.007-39.007c-5.393-5.398-5.393-14.129,0-19.521 c5.392-5.392,14.123-5.392,19.516,0l29.252,29.262l79.944-79.948c5.381-5.386,14.111-5.386,19.504,0 C250.764,122.038,250.764,130.769,245.371,136.161z"></path>
+          </g>
+        </g>
+      </svg>
+      <style>
+        @keyframes checkmark {
+          0% { opacity: 0; transform: scale(0); }
+          50% { opacity: 1; transform: scale(1.2); }
+          100% { opacity: 1; transform: scale(1); }
+        }
+        .animate-checkmark {
+          animation: checkmark 0.3s ease-in-out forwards;
+        }
+      </style>
+    `;
+    setTimeout(() => {
+      // Restore original button content with fade-in effect
+      downloadButton.innerHTML = `
+        <div style="opacity: 0; transition: opacity 0.3s ease-in-out;">
+          ${originalButtonContent}
+        </div>
+      `;
+      setTimeout(() => {
+        downloadButton.querySelector("div").style.opacity = "1";
+      }, 50);
+    }, 3000); // Show checkmark for 3000ms
   } catch (error) {
-    console.error("Error downloading file:", error);
-    alert("Failed to download file. Please try again.");
+    console.error("Error initiating download:", error);
+    alert("Failed to initiate download. Please try again.");
+  } finally {
+    // Ensure button is re-enabled
+    downloadButton.disabled = false;
   }
 }
 
@@ -1122,6 +1555,7 @@ async function fetchFolders(folderId) {
   }
 }
 
+// Updated fetchFiles to parse filename components
 async function fetchFiles(folderId) {
   try {
     const response = await fetch(
@@ -1130,7 +1564,74 @@ async function fetchFiles(folderId) {
     if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
     const data = await response.json();
     if (data.error) throw new Error(data.error);
-    return data.files || [];
+
+    // Parse filenames and extract components
+    const parsedFiles = data.files.map((file) => {
+      // Updated regex to handle both new and existing filename patterns
+      const filePattern =
+        /^([A-Za-z&]+)_(ISE\s*\d|ESE|Combined|Resources_[A-Za-z]+|[A-Za-z]+)_SEM\s*(\d)\s*\(([A-Za-z]+)\)<(\d{4}-\d{2})>(?:\{([A-Za-z0-9_-]+)\})?\.([a-zA-Z]+)/;
+      const match = file.name.match(filePattern);
+      if (match) {
+        const [
+          ,
+          course,
+          examType,
+          semester,
+          uploaderName,
+          year,
+          googleDocId,
+          extension,
+        ] = match;
+        return {
+          ...file,
+          course,
+          examType: examType.replace(/\s+/g, ""), // Remove spaces (e.g., "ISE 1" -> "ISE1")
+          semester: `SEM${semester}`,
+          uploaderName,
+          year,
+          googleDocId,
+          extension,
+        };
+      }
+      return {
+        ...file,
+        course: "Unknown",
+        examType: "Unknown",
+        semester: "Unknown",
+        uploaderName: "Unknown",
+        year: "Unknown",
+        extension: file.name.split(".").pop().toLowerCase(),
+      };
+    });
+
+    // Sort files by year (descending), exam type, and resources alphabetically
+    parsedFiles.sort((a, b) => {
+      // Primary sorting: Year (most recent first)
+      const yearA = a.year || "0000-00";
+      const yearB = b.year || "0000-00";
+      if (yearA !== yearB) {
+        return yearB.localeCompare(yearA);
+      }
+
+      // Secondary sorting: Exam type
+      const examOrder = ["ISE1", "ISE2", "ESE", "Combined"];
+      const aIndex =
+        examOrder.indexOf(a.examType) !== -1
+          ? examOrder.indexOf(a.examType)
+          : examOrder.length;
+      const bIndex =
+        examOrder.indexOf(b.examType) !== -1
+          ? examOrder.indexOf(b.examType)
+          : examOrder.length;
+      if (aIndex !== bIndex) {
+        return aIndex - bIndex;
+      }
+
+      // Tertiary sorting: Alphabetical for other exam types (e.g., Resources_*, DAA, DSA)
+      return a.examType.localeCompare(b.examType);
+    });
+
+    return parsedFiles;
   } catch (error) {
     console.error("Error fetching files:", error);
     throw error;
@@ -1182,3 +1683,321 @@ async function revokeTemporaryAccess(fileId) {
     throw error;
   }
 }
+
+document.addEventListener("DOMContentLoaded", function () {
+  // Get references to elements
+  const firstYear = document.getElementById("firstYear");
+  const secondYear = document.getElementById("secondYear");
+  const firstYearUpload = document.getElementById("firstYearUpload");
+  const secondYearUpload = document.getElementById("secondYearUpload");
+  const switchButtonContainer = document.getElementById(
+    "switchButtonContainer"
+  );
+  const switchButton = document.getElementById("switchButton");
+  const closeSwitchModal = document.getElementById("closeSwitchModal");
+  const switchModal = document.getElementById("switchModal");
+
+  // Get references to switch trigger elements
+  const switchSpan = document.getElementById("switch");
+  const switchSvg = switchSpan ? switchSpan.querySelector("svg") : null;
+
+  // URL mappings for each radio button
+  const urlMappings = {
+    firstYear: "https://pyqs-isk.pages.dev",
+    secondYear: "https://cups-user.vercel.app",
+    firstYearUpload: "https://1yr-pyqsupload-isk.pages.dev",
+    secondYearUpload: "https://cups-admin.vercel.app",
+  };
+
+  // Function to show the modal
+  function showModal() {
+    // First, show the modal without overlay
+    switchModal.classList.remove("hidden");
+    switchModal.style.display = "flex";
+
+    // Get the modal content element
+    const modalContent = switchModal.querySelector(".bg-gray-800");
+    const modalOverlay = switchModal.querySelector(".fixed.inset-0");
+
+    // Initially hide overlay with dramatic starting state
+    if (modalOverlay) {
+      modalOverlay.style.opacity = "0";
+      modalOverlay.style.transform = "scale(1.1)";
+      modalOverlay.style.filter = "blur(8px)";
+    }
+
+    // Initial state for modal content (stack-out animation)
+    if (modalContent) {
+      modalContent.style.opacity = "0";
+      modalContent.style.transform = "scale(0.8) translateY(20px)";
+      modalContent.style.transition =
+        "all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275)";
+    }
+
+    // First animate the modal content
+    setTimeout(() => {
+      if (modalContent) {
+        modalContent.style.opacity = "1";
+        modalContent.style.transform = "scale(1) translateY(0px)";
+      }
+
+      // Then apply dramatic overlay effect after a short delay
+      setTimeout(() => {
+        if (modalOverlay) {
+          modalOverlay.style.transition =
+            "all 0.6s cubic-bezier(0.25, 0.46, 0.45, 0.94)";
+          modalOverlay.style.opacity = "1";
+          modalOverlay.style.transform = "scale(1)";
+          modalOverlay.style.filter = "blur(0px)";
+        }
+      }, 150);
+    }, 10);
+
+    // Enhanced auto-scroll to center modal perfectly
+    setTimeout(() => {
+      centerModalOnScreen();
+    }, 50);
+  }
+
+  // Enhanced function to center modal perfectly on screen
+  function centerModalOnScreen() {
+    const modalContent = switchModal.querySelector(".bg-gray-800");
+    if (modalContent) {
+      const rect = modalContent.getBoundingClientRect();
+      const viewportHeight = window.innerHeight;
+      const modalHeight = rect.height;
+
+      // Calculate the exact center position
+      const currentModalCenter = rect.top + modalHeight / 2;
+      const desiredModalCenter = viewportHeight / 2;
+      const scrollAdjustment = currentModalCenter - desiredModalCenter;
+
+      // Only scroll if the modal isn't already perfectly centered (with 50px tolerance)
+      if (Math.abs(scrollAdjustment) > 50) {
+        const targetScrollY = window.pageYOffset + scrollAdjustment;
+
+        // Enhanced smooth scroll with custom easing
+        const startScrollY = window.pageYOffset;
+        const distance = targetScrollY - startScrollY;
+        const duration = 800; // Longer, more elegant scroll
+        let startTime = null;
+
+        function animateScroll(currentTime) {
+          if (startTime === null) startTime = currentTime;
+          const timeElapsed = currentTime - startTime;
+          const progress = Math.min(timeElapsed / duration, 1);
+
+          // Custom easing function (ease-out-cubic)
+          const easeOutCubic = 1 - Math.pow(1 - progress, 3);
+
+          const currentScrollY = startScrollY + distance * easeOutCubic;
+          window.scrollTo(0, currentScrollY);
+
+          if (progress < 1) {
+            requestAnimationFrame(animateScroll);
+          }
+        }
+
+        requestAnimationFrame(animateScroll);
+      }
+    }
+  }
+
+  // Function to show switch button with enhanced animation
+  function showSwitchButton(url) {
+    switchButton.href = url;
+
+    // If button is already visible, show selection change animation
+    if (!switchButtonContainer.classList.contains("hidden")) {
+      // Quick pulse and color change animation for selection change
+      switchButton.style.transition = "all 0.2s ease-in-out";
+      switchButton.style.transform = "scale(0.95)";
+      switchButton.style.backgroundColor = "#059669"; // darker green
+
+      setTimeout(() => {
+        switchButton.style.transform = "scale(1.05)";
+        switchButton.style.backgroundColor = "#10b981"; // brighter green
+      }, 100);
+
+      setTimeout(() => {
+        switchButton.style.transform = "scale(1)";
+        switchButton.style.backgroundColor = ""; // reset to default
+        switchButton.style.transition = "";
+      }, 300);
+    } else {
+      // Initial show animation
+      switchButtonContainer.classList.remove("hidden");
+
+      // Enhanced entrance animation with multiple effects
+      switchButton.style.transform = "scale(0.8) rotateX(90deg)";
+      switchButton.style.opacity = "0";
+      switchButton.style.transition =
+        "all 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275)";
+
+      // Trigger animation after a small delay to ensure the element is rendered
+      setTimeout(() => {
+        switchButtonContainer.classList.remove("opacity-0", "translate-y-4");
+        switchButtonContainer.classList.add("opacity-100", "translate-y-0");
+
+        switchButton.style.transform = "scale(1) rotateX(0deg)";
+        switchButton.style.opacity = "1";
+
+        // Add a subtle glow effect
+        setTimeout(() => {
+          switchButton.style.boxShadow = "0 0 20px rgba(16, 185, 129, 0.4)";
+          setTimeout(() => {
+            switchButton.style.boxShadow = "";
+            switchButton.style.transition = "";
+          }, 800);
+        }, 200);
+      }, 10);
+    }
+  }
+
+  // Function to hide switch button with enhanced animation
+  function hideSwitchButton() {
+    // Enhanced exit animation
+    switchButton.style.transition =
+      "all 0.4s cubic-bezier(0.68, -0.55, 0.265, 1.55)";
+    switchButton.style.transform = "scale(0.7) rotateX(-90deg)";
+    switchButton.style.opacity = "0";
+
+    switchButtonContainer.classList.remove("opacity-100", "translate-y-0");
+    switchButtonContainer.classList.add("opacity-0", "translate-y-4");
+
+    // Hide the element after animation completes
+    setTimeout(() => {
+      switchButtonContainer.classList.add("hidden");
+
+      // Reset button state
+      switchButton.style.transform = "scale(1) rotateX(0deg)";
+      switchButton.style.opacity = "1";
+      switchButton.style.transition = "";
+    }, 400);
+  }
+
+  // Add event listeners to switch trigger elements
+  if (switchSpan) {
+    switchSpan.addEventListener("click", function (e) {
+      e.preventDefault();
+      showModal();
+    });
+  }
+
+  if (switchSvg) {
+    switchSvg.addEventListener("click", function (e) {
+      e.preventDefault();
+      e.stopPropagation(); // Prevent event bubbling
+      showModal();
+    });
+  }
+
+  // Add event listeners to radio buttons
+  if (firstYear) {
+    firstYear.addEventListener("change", function () {
+      if (this.checked) {
+        showSwitchButton(urlMappings.firstYear);
+      }
+    });
+  }
+
+  if (secondYear) {
+    secondYear.addEventListener("change", function () {
+      if (this.checked) {
+        showSwitchButton(urlMappings.secondYear);
+      }
+    });
+  }
+
+  if (firstYearUpload) {
+    firstYearUpload.addEventListener("change", function () {
+      if (this.checked) {
+        showSwitchButton(urlMappings.firstYearUpload);
+      }
+    });
+  }
+
+  if (secondYearUpload) {
+    secondYearUpload.addEventListener("change", function () {
+      if (this.checked) {
+        showSwitchButton(urlMappings.secondYearUpload);
+      }
+    });
+  }
+
+  // Close modal functionality with enhanced stack-in animation and dramatic overlay removal
+  if (closeSwitchModal) {
+    closeSwitchModal.addEventListener("click", function () {
+      const modalContent = switchModal.querySelector(".bg-gray-800");
+      const modalOverlay = switchModal.querySelector(".fixed.inset-0");
+
+      // First create dramatic overlay fade-out with reverse effects
+      if (modalOverlay) {
+        modalOverlay.style.transition =
+          "all 0.4s cubic-bezier(0.55, 0.085, 0.68, 0.53)";
+        modalOverlay.style.opacity = "0";
+        modalOverlay.style.transform = "scale(1.05)";
+        modalOverlay.style.filter = "blur(4px)";
+      }
+
+      // Then animate modal content with enhanced stack-in effect
+      setTimeout(() => {
+        if (modalContent) {
+          modalContent.style.transition =
+            "all 0.35s cubic-bezier(0.68, -0.55, 0.265, 1.55)";
+          modalContent.style.opacity = "0";
+          modalContent.style.transform =
+            "scale(0.65) translateY(-40px) rotateX(10deg)";
+        }
+      }, 100);
+
+      // Hide modal after all animations complete
+      setTimeout(() => {
+        switchModal.classList.add("hidden");
+        switchModal.style.display = "none";
+
+        // Reset modal state for next opening
+        if (modalContent) {
+          modalContent.style.opacity = "1";
+          modalContent.style.transform =
+            "scale(1) translateY(0px) rotateX(0deg)";
+          modalContent.style.transition = "";
+        }
+
+        if (modalOverlay) {
+          modalOverlay.style.opacity = "1";
+          modalOverlay.style.transform = "scale(1)";
+          modalOverlay.style.filter = "blur(0px)";
+          modalOverlay.style.transition = "";
+        }
+
+        // Reset radio buttons and hide switch button
+        const radioButtons = document.querySelectorAll(
+          'input[name="default-radio"]'
+        );
+        radioButtons.forEach((radio) => (radio.checked = false));
+        hideSwitchButton();
+      }, 450);
+    });
+  }
+
+  // Close modal when clicking outside of it
+  if (switchModal) {
+    switchModal.addEventListener("click", function (e) {
+      if (e.target === switchModal || e.target.classList.contains("fixed")) {
+        if (closeSwitchModal) {
+          closeSwitchModal.click();
+        }
+      }
+    });
+  }
+
+  // Alternative: Add event listener to any element with class 'switch-trigger'
+  const switchTriggers = document.querySelectorAll(".switch-trigger");
+  switchTriggers.forEach((trigger) => {
+    trigger.addEventListener("click", function (e) {
+      e.preventDefault();
+      showModal();
+    });
+  });
+});
