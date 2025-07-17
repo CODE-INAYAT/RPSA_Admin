@@ -7,6 +7,13 @@ body {
   font-style: normal;
 }
 
+#loading-folders {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  height: 100%;
+}
+
 /* Custom scrollbar */
 ::-webkit-scrollbar {
   width: 6px;
@@ -561,23 +568,613 @@ main {
   }
 }
 
-/* Prevnet Click & Hover during animation */
+/* Add this CSS to your stylesheet */
+
 #loading-overlay {
+  /* Make it cover the entire screen, on top of everything */
   position: fixed;
-  inset: 0; 
-  z-index: 9999; 
+  inset: 0; /* Modern shorthand for top:0, right:0, bottom:0, left:0 */
+  z-index: 9999; /* A very high z-index to ensure it's on top */
+
+  /* It doesn't need a background, it's an invisible shield */
+
+  /* This animation will remove the overlay after 4.7s */
   animation: hide-loading-overlay 4.7s forwards;
 }
 
 @keyframes hide-loading-overlay {
   0% {
+    /* At the start, it's visible and blocks all events */
     visibility: visible;
   }
   99.9% {
+    /* It remains visible for the entire duration */
     visibility: visible;
   }
   100% {
+    /* At the very end, it becomes hidden, enabling interactions */
     visibility: hidden;
   }
 }
 
+/*Animation on chat bubble*/
+/* animations.css */
+
+/* Keyframe Animations */
+@keyframes slideInUp {
+  from {
+    opacity: 0;
+    transform: translateY(30px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes fadeInScale {
+  from {
+    opacity: 0;
+    transform: scale(0.95);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+@keyframes bounceIn {
+  0% {
+    opacity: 0;
+    transform: scale(0.3);
+  }
+  50% {
+    opacity: 1;
+    transform: scale(1.05);
+  }
+  70% {
+    transform: scale(0.9);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+@keyframes shimmer {
+  0% {
+    background-position: -200px 0;
+  }
+  100% {
+    background-position: calc(200px + 100%) 0;
+  }
+}
+
+@keyframes pulse {
+  0%,
+  100% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(1.05);
+  }
+}
+
+@keyframes slideInLeft {
+  from {
+    opacity: 0;
+    transform: translateX(-20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+@keyframes floatUp {
+  0% {
+    opacity: 0;
+    transform: translateY(20px) scale(0.8);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes glow {
+  0%,
+  100% {
+    box-shadow: 0 0 5px rgba(59, 130, 246, 0.3);
+  }
+  50% {
+    box-shadow: 0 0 20px rgba(59, 130, 246, 0.6);
+  }
+}
+
+/* Chat Bubble Animations */
+.chat-bubble {
+  animation: slideInUp 0.6s ease-out;
+  animation-fill-mode: both;
+}
+
+.chat-bubble:nth-child(1) {
+  animation-delay: 0.1s;
+}
+.chat-bubble:nth-child(2) {
+  animation-delay: 0.2s;
+}
+.chat-bubble:nth-child(3) {
+  animation-delay: 0.3s;
+}
+.chat-bubble:nth-child(4) {
+  animation-delay: 0.4s;
+}
+.chat-bubble:nth-child(5) {
+  animation-delay: 0.5s;
+}
+.chat-bubble:nth-child(n + 6) {
+  animation-delay: 0.6s;
+}
+
+/* Profile Section Animations */
+.chat-bubble .relative {
+  animation: bounceIn 0.8s ease-out;
+  animation-delay: 0.3s;
+  animation-fill-mode: both;
+}
+
+.chat-bubble .flex-1 {
+  animation: slideInLeft 0.6s ease-out;
+  animation-delay: 0.4s;
+  animation-fill-mode: both;
+}
+
+/* Chat Bubble Content */
+.chat-bubble > div:last-child {
+  animation: fadeInScale 0.7s ease-out;
+  animation-delay: 0.2s;
+  animation-fill-mode: both;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* Hover Effects */
+.chat-bubble > div:last-child:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 10px 25px rgba(0, 0, 0, 0.15);
+}
+
+/* Time Badge Animation */
+.chat-bubble time span {
+  animation: floatUp 0.5s ease-out;
+  animation-delay: 0.6s;
+  animation-fill-mode: both;
+  transition: all 0.2s ease;
+}
+
+.chat-bubble time span:hover {
+  transform: scale(1.05);
+  animation: glow 2s infinite;
+}
+
+/* File Content Animation */
+.chat-bubble .leading-1\.5 {
+  animation: slideInUp 0.5s ease-out;
+  animation-delay: 0.7s;
+  animation-fill-mode: both;
+}
+
+/* Icon Animation */
+.chat-bubble svg,
+.chat-bubble img {
+  animation: bounceIn 0.6s ease-out;
+  animation-delay: 0.8s;
+  animation-fill-mode: both;
+  transition: transform 0.2s ease;
+}
+
+.chat-bubble svg:hover,
+.chat-bubble img:hover {
+  transform: scale(1.1) rotate(5deg);
+}
+
+/* Download Button Animation */
+.chat-bubble button {
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  opacity: 0;
+  transform: scale(0.8);
+}
+
+.chat-bubble:hover button {
+  opacity: 1;
+  transform: scale(1);
+  animation: bounceIn 0.4s ease-out;
+}
+
+.chat-bubble button:hover {
+  transform: scale(1.1);
+  color: #3b82f6;
+}
+
+/* Avatar Gradient Animation */
+.chat-bubble .w-9.h-9 {
+  position: relative;
+  overflow: hidden;
+  transition: all 0.3s ease;
+}
+
+.chat-bubble .w-9.h-9::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: -100%;
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(
+    90deg,
+    transparent,
+    rgba(255, 255, 255, 0.2),
+    transparent
+  );
+  transition: left 0.5s;
+}
+
+.chat-bubble:hover .w-9.h-9::before {
+  left: 100%;
+}
+
+/* Status Indicator Pulse */
+.chat-bubble .absolute.-bottom-0\.5 {
+  animation: pulse 2s infinite;
+}
+
+/* File Size and Type Animation */
+.file-size,
+.file-type {
+  transition: all 0.2s ease;
+}
+
+.chat-bubble:hover .file-size,
+.chat-bubble:hover .file-type {
+  color: #3b82f6;
+  transform: translateX(2px);
+}
+
+/* Year Link Animation */
+.file-year {
+  position: relative;
+  transition: all 0.2s ease;
+}
+
+.file-year::after {
+  content: "";
+  position: absolute;
+  width: 0;
+  height: 2px;
+  bottom: -2px;
+  left: 0;
+  background-color: #3b82f6;
+  transition: width 0.3s ease;
+}
+
+.file-year:hover::after {
+  width: 100%;
+}
+
+/* Loading Animation for New Items */
+.chat-bubble.loading {
+  background: linear-gradient(90deg, #f0f0f0 25%, #e0e0e0 50%, #f0f0f0 75%);
+  background-size: 200px 100%;
+  animation: shimmer 1.5s infinite;
+}
+
+/* Smooth Transitions */
+.chat-bubble * {
+  transition: all 0.2s ease;
+}
+
+/* Mobile Responsive Animations */
+@media (max-width: 768px) {
+  .chat-bubble {
+    animation-duration: 0.4s;
+  }
+
+  .chat-bubble > div:last-child:hover {
+    transform: none;
+  }
+}
+
+/* Dark Mode Adjustments */
+@media (prefers-color-scheme: dark) {
+  .chat-bubble:hover button {
+    color: #60a5fa;
+  }
+
+  .chat-bubble:hover .file-size,
+  .chat-bubble:hover .file-type {
+    color: #60a5fa;
+  }
+
+  .file-year::after {
+    background-color: #60a5fa;
+  }
+}
+
+/* Accessibility - Reduced Motion */
+@media (prefers-reduced-motion: reduce) {
+  .chat-bubble,
+  .chat-bubble *,
+  .chat-bubble::before,
+  .chat-bubble::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+/*======================Animation on subject/sem folder===========================*/
+/* Container animations */
+.dynamic-div-height {
+  animation: containerSlideIn 0.6s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+  transform-origin: top;
+}
+
+@keyframes containerSlideIn {
+  0% {
+    opacity: 0;
+    transform: translateY(-20px) scale(0.95);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+/* Search form animations */
+.search-form {
+  animation: searchFormFadeIn 0.8s ease-out 0.2s both;
+}
+
+@keyframes searchFormFadeIn {
+  0% {
+    opacity: 0;
+    transform: translateY(-15px);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* List container animations */
+.dynamic-ol-height {
+  animation: listFadeIn 0.8s ease-out 0.4s both;
+}
+
+@keyframes listFadeIn {
+  0% {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Subfolder item animations */
+.subfolder-item {
+  animation: itemSlideIn 0.5s cubic-bezier(0.25, 0.46, 0.45, 0.94) both;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.subfolder-item:nth-child(1) {
+  animation-delay: 0.1s;
+}
+.subfolder-item:nth-child(2) {
+  animation-delay: 0.15s;
+}
+.subfolder-item:nth-child(3) {
+  animation-delay: 0.2s;
+}
+.subfolder-item:nth-child(4) {
+  animation-delay: 0.25s;
+}
+.subfolder-item:nth-child(5) {
+  animation-delay: 0.3s;
+}
+.subfolder-item:nth-child(n + 6) {
+  animation-delay: 0.35s;
+}
+
+@keyframes itemSlideIn {
+  0% {
+    opacity: 0;
+    transform: translateX(-30px) scale(0.9);
+  }
+  100% {
+    opacity: 1;
+    transform: translateX(0) scale(1);
+  }
+}
+
+/* Enhanced folder link hover effects */
+.folder-link {
+  position: relative;
+  overflow: hidden;
+  transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+  transform-origin: center;
+}
+
+.folder-link::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: -100%;
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(
+    90deg,
+    transparent,
+    rgba(255, 255, 255, 0.1),
+    transparent
+  );
+  transition: left 0.6s ease;
+}
+
+.folder-link:hover::before {
+  left: 100%;
+}
+
+.folder-link:hover {
+  transform: translateX(8px) scale(1.02);
+  box-shadow: 0 8px 25px rgba(59, 130, 246, 0.2);
+}
+
+.folder-link:active {
+  transform: translateX(8px) scale(0.98);
+}
+
+/* Folder icon animations */
+.folder-icon-container {
+  transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+  position: relative;
+}
+
+.folder-link:hover .folder-icon-container {
+  transform: rotate(5deg) scale(1.1);
+  box-shadow: 0 6px 20px rgba(59, 130, 246, 0.15);
+}
+
+.folder-icon {
+  transition: all 0.3s ease;
+  filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.1));
+}
+
+.folder-link:hover .folder-icon {
+  filter: drop-shadow(0 4px 8px rgba(59, 130, 246, 0.2));
+}
+
+/* Text animations */
+.folder-text {
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  position: relative;
+}
+
+.folder-link:hover .folder-text {
+  transform: translateX(4px);
+}
+
+/* Arrow icon animations */
+.arrow-icon {
+  transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+  transform-origin: center;
+}
+
+.folder-link:hover .arrow-icon {
+  transform: translateX(6px) scale(1.1);
+  color: #ffffff !important;
+}
+
+/* Pulse animation for loading states */
+.pulse-animation {
+  animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+}
+
+@keyframes pulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.7;
+  }
+}
+
+/* Smooth scroll behavior */
+.dynamic-ol-height {
+  scroll-behavior: smooth;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(59, 130, 246, 0.3) transparent;
+}
+
+.dynamic-ol-height::-webkit-scrollbar {
+  width: 6px;
+}
+
+.dynamic-ol-height::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.dynamic-ol-height::-webkit-scrollbar-thumb {
+  background: rgba(59, 130, 246, 0.3);
+  border-radius: 3px;
+  transition: background 0.3s ease;
+}
+
+.dynamic-ol-height::-webkit-scrollbar-thumb:hover {
+  background: rgba(59, 130, 246, 0.5);
+}
+
+/* Menu button hide animation */
+.hidden-right {
+  transform: translateX(100px);
+  opacity: 0;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* Search result highlight animation */
+.search-highlight {
+  animation: highlightPulse 0.6s ease-out;
+}
+
+@keyframes highlightPulse {
+  0% {
+    background-color: rgba(59, 130, 246, 0.1);
+    transform: scale(1);
+  }
+  50% {
+    background-color: rgba(59, 130, 246, 0.2);
+    transform: scale(1.02);
+  }
+  100% {
+    background-color: transparent;
+    transform: scale(1);
+  }
+}
+
+/* Responsive animations */
+@media (max-width: 768px) {
+  .folder-link:hover {
+    transform: translateX(4px) scale(1.01);
+  }
+
+  .folder-link:hover .folder-icon-container {
+    transform: rotate(3deg) scale(1.05);
+  }
+}
+
+/* Dark mode specific animations */
+@media (prefers-color-scheme: dark) {
+  .folder-link::before {
+    background: linear-gradient(
+      90deg,
+      transparent,
+      rgba(255, 255, 255, 0.05),
+      transparent
+    );
+  }
+
+  .folder-link:hover {
+    box-shadow: 0 8px 25px rgba(59, 130, 246, 0.15);
+  }
+}
+
+/* Accessibility: Reduced motion */
+@media (prefers-reduced-motion: reduce) {
+  * {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
