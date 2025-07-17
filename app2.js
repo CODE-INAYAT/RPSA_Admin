@@ -1,8 +1,8 @@
 // Configuration
-const APPS_SCRIPT_URL =
-  "https://script.google.com/macros/s/AKfycbypjygGyHpu_18aiLd3U_LZ6zLSGu8bH1suVBiunXC7RatSHkzlsKnJp_Phl1eLFQ/exec";
+const SCRIPT_URL =
+  "https://script.google.com/macros/s/AKfycbz13qMAr_iMbUfZ8COwaNYu-P766Zf1EjbI94lOLgJZvpRMgH7kwegGNm9PwyMIuVV-GA/exec";
 
-const ROOT_FOLDER_ID = "192Ni6mhVSFYvrPTIxW9p6FEo2P0o_ABs";
+const ROOT_FOLDER_ID = "1zRtyoWbD8SZDYZeAsV8QIJ95wbW0BbVu";
 const POLLING_INTERVAL = 5000; // Check every 5 seconds
 
 // DOM Elements
@@ -199,6 +199,7 @@ async function initApp() {
       "Failed to load folders. Please refresh the page."
     );
   }
+  initializeAnimations();
 }
 
 // Setup event listeners
@@ -409,13 +410,48 @@ function filterFolders(searchTerm) {
 }
 
 // Load folders from Database
+// async function loadFolders(folderId) {
+//   if (folderCache[folderId]) {
+//     renderFolders(folderCache[folderId].content);
+//     return;
+//   }
+//   foldersList.querySelector("tbody").innerHTML = "";
+//   loadingFolders.classList.remove("hidden");
+//   try {
+//     let folders = await fetchFolders(folderId);
+//     folders = folders.sort((a, b) => a.name.localeCompare(b.name)); // Sort before rendering
+//     allFolders = folders;
+//     folderCache[folderId] = { type: "folders", content: folders };
+//     console.log(`${folders[0]?.name || folderId} folder cached`);
+//     if (folders.length === 0) {
+//       foldersList.querySelector("tbody").innerHTML =
+//         '<tr><th scope="row" class="px-6 py-4 font-medium text-gray-900 whitespace-nowrap dark:text-white">No folders found</th></tr>';
+//     } else {
+//       renderFolders(folders);
+//     }
+//   } catch (error) {
+//     console.error("Error loading folders:", error);
+//     showErrorMessage(
+//       foldersList.querySelector("tbody"),
+//       "Failed to load folders"
+//     );
+//   } finally {
+//     loadingFolders.classList.add("hidden");
+//   }
+// }
+// Load folders from Database
 async function loadFolders(folderId) {
   if (folderCache[folderId]) {
     renderFolders(folderCache[folderId].content);
     return;
   }
-  foldersList.querySelector("tbody").innerHTML = "";
-  loadingFolders.classList.remove("hidden");
+
+  const tbody = foldersList.querySelector("tbody");
+  const loadingRow = document.getElementById("loading-folders");
+
+  // Show loading spinner
+  loadingRow.classList.remove("hidden");
+
   try {
     let folders = await fetchFolders(folderId);
     folders = folders.sort((a, b) => a.name.localeCompare(b.name)); // Sort before rendering
@@ -423,70 +459,136 @@ async function loadFolders(folderId) {
     folderCache[folderId] = { type: "folders", content: folders };
     console.log(`${folders[0]?.name || folderId} folder cached`);
     if (folders.length === 0) {
-      foldersList.querySelector("tbody").innerHTML =
+      tbody.innerHTML = "";
+      tbody.innerHTML =
         '<tr><th scope="row" class="px-6 py-4 font-medium text-gray-900 whitespace-nowrap dark:text-white">No folders found</th></tr>';
+      loadingRow.classList.add("hidden");
     } else {
       renderFolders(folders);
     }
   } catch (error) {
     console.error("Error loading folders:", error);
-    showErrorMessage(
-      foldersList.querySelector("tbody"),
-      "Failed to load folders"
-    );
-  } finally {
-    loadingFolders.classList.add("hidden");
+    tbody.innerHTML = "";
+    showErrorMessage(tbody, "Failed to load folders. Please refresh the page.");
+    loadingRow.classList.add("hidden");
   }
 }
 
 // Render folders in the left pane
+// function renderFolders(folders) {
+//   const tbody = foldersList.querySelector("tbody");
+//   tbody.innerHTML = "";
+//   folders.forEach((folder) => {
+//     const folderItem = document.createElement("tr");
+//     folderItem.className =
+//       "folder-item bg-white border-b dark:bg-gray-800 dark:border-gray-700 border-gray-200 hover:bg-gray-50 dark:hover:bg-gray-600 cursor-pointer";
+//     folderItem.dataset.id = folder.id;
+//     folderItem.dataset.name = folder.name;
+//     folderItem.innerHTML = `
+//       <th scope="row" class="px-6 py-4 font-medium text-gray-900 whitespace-nowrap dark:text-white">
+//         <div class="flex items-center">
+//           <div class="w-12 h-12 bg-white shadow-xl rounded-full flex items-center justify-center mr-3">
+//           <img src="./Folder_SVG.svg" class="w-8 h-8 shrink-0 alt="Folder Icon"/>
+//           </div>
+//           <div class="flex-1">
+//             <div class="folder-name">${folder.name}</div>
+//             <div class="text-xs text-gray-500">${
+//               folder.isSubject ? "Subject" : "Course"
+//             }</div>
+//           </div>
+//         </div>
+//       </th>
+//     `;
+
+//     folderItem.addEventListener("mouseenter", () => {
+//       const svg = folderItem.querySelector("svg");
+//       if (svg) {
+//         svg.classList.remove("text-gray-500", "dark:text-gray-500");
+//         svg.classList.add("text-blue-700");
+//       }
+//     });
+
+//     folderItem.addEventListener("mouseleave", () => {
+//       const svg = folderItem.querySelector("svg");
+//       if (svg) {
+//         svg.classList.remove("text-blue-700");
+//         svg.classList.add("text-gray-500", "dark:text-gray-500");
+//       }
+//     });
+
+//     folderItem.addEventListener("click", () =>
+//       selectFolder(folder.id, folder.name, folder.isSubject)
+//     );
+
+//     tbody.appendChild(folderItem);
+//   });
+// }
+// Render folders in the left pane
 function renderFolders(folders) {
   const tbody = foldersList.querySelector("tbody");
+  const loadingRow = document.getElementById("loading-folders");
+
+  // Ensure loading spinner is visible
+  loadingRow.classList.remove("hidden");
+
+  // Clear tbody but preserve the loading row
   tbody.innerHTML = "";
-  folders.forEach((folder) => {
-    const folderItem = document.createElement("tr");
-    folderItem.className =
-      "folder-item bg-white border-b dark:bg-gray-800 dark:border-gray-700 border-gray-200 hover:bg-gray-50 dark:hover:bg-gray-600 cursor-pointer";
-    folderItem.dataset.id = folder.id;
-    folderItem.dataset.name = folder.name;
-    folderItem.innerHTML = `
-      <th scope="row" class="px-6 py-4 font-medium text-gray-900 whitespace-nowrap dark:text-white">
-        <div class="flex items-center">
-          <div class="w-12 h-12 bg-white shadow-xl rounded-full flex items-center justify-center mr-3">
-          <img src="./Folder_SVG.svg" class="w-8 h-8 shrink-0 alt="Folder Icon"/>
-          </div>
-          <div class="flex-1">
-            <div class="folder-name">${folder.name}</div>
-            <div class="text-xs text-gray-500">${
-              folder.isSubject ? "Subject" : "Course"
-            }</div>
-          </div>
-        </div>
-      </th>
-    `;
+  tbody.appendChild(loadingRow);
 
-    folderItem.addEventListener("mouseenter", () => {
-      const svg = folderItem.querySelector("svg");
-      if (svg) {
-        svg.classList.remove("text-gray-500", "dark:text-gray-500");
-        svg.classList.add("text-blue-700");
-      }
+  // Simulate async rendering (replace with actual async operation if needed)
+  setTimeout(() => {
+    // Clear tbody again to remove loading row before rendering folders
+    tbody.innerHTML = "";
+
+    // Render folders
+    folders.forEach((folder) => {
+      const folderItem = document.createElement("tr");
+      folderItem.className =
+        "folder-item bg-white border-b dark:bg-gray-800 dark:border-gray-700 border-gray-200 hover:bg-gray-50 dark:hover:bg-gray-600 cursor-pointer";
+      folderItem.dataset.id = folder.id;
+      folderItem.dataset.name = folder.name;
+      folderItem.innerHTML = `
+        <th scope="row" class="px-6 py-4 font-medium text-gray-900 whitespace-nowrap dark:text-white">
+          <div class="flex items-center">
+            <div class="w-12 h-12 bg-white shadow-xl rounded-full flex items-center justify-center mr-3">
+              <img src="./Folder_SVG.svg" class="w-8 h-8 shrink-0" alt="Folder Icon"/>
+            </div>
+            <div class="flex-1">
+              <div class="folder-name">${folder.name}</div>
+              <div class="text-xs text-gray-500">${
+                folder.isSubject ? "Subject" : "Course"
+              }</div>
+            </div>
+          </div>
+        </th>
+      `;
+
+      folderItem.addEventListener("mouseenter", () => {
+        const svg = folderItem.querySelector("svg");
+        if (svg) {
+          svg.classList.remove("text-gray-500", "dark:text-gray-500");
+          svg.classList.add("text-blue-700");
+        }
+      });
+
+      folderItem.addEventListener("mouseleave", () => {
+        const svg = folderItem.querySelector("svg");
+        if (svg) {
+          svg.classList.remove("text-blue-700");
+          svg.classList.add("text-gray-500", "dark:text-gray-500");
+        }
+      });
+
+      folderItem.addEventListener("click", () =>
+        selectFolder(folder.id, folder.name, folder.isSubject)
+      );
+
+      tbody.appendChild(folderItem);
     });
 
-    folderItem.addEventListener("mouseleave", () => {
-      const svg = folderItem.querySelector("svg");
-      if (svg) {
-        svg.classList.remove("text-blue-700");
-        svg.classList.add("text-gray-500", "dark:text-gray-500");
-      }
-    });
-
-    folderItem.addEventListener("click", () =>
-      selectFolder(folder.id, folder.name, folder.isSubject)
-    );
-
-    tbody.appendChild(folderItem);
-  });
+    // Ensure loading spinner is hidden after rendering
+    loadingRow.classList.add("hidden");
+  }, 0); // Delay if needed or remove for synchronous rendering
 }
 
 // Updated selectFolder to handle empty folders
@@ -600,12 +702,12 @@ function updateBreadcrumb(courseName, subjectName = null) {
 
   // Dropdown options
   const dropdownOptions = [
-    { value: "Roll Number", display: "Roll Number" },
-    { value: "File ID", display: "File ID" },
-    { value: "Experiment No.", display: "Experiment No." },
-    { value: "Time", display: "Time" },
-    { value: "Size", display: "Size" },
-    { value: "File Type", display: "File Type" },
+    { value: "Experiment No.", display: "File Name" },
+    { value: "Roll Number", display: "Name" },
+    { value: "File ID", display: "Year" },
+    { value: "Time", display: "Date/Time" },
+    { value: "Size", display: "File Size" },
+    // { value: "File Type", display: "File Type" },
   ];
 
   // Search bar HTML
@@ -819,7 +921,7 @@ function renderSubfolders(subfolders) {
   <path stroke-linecap="round" stroke-linejoin="round" d="m21 21-5.197-5.197m0 0A7.5 7.5 0 1 0 5.196 5.196a7.5 7.5 0 0 0 10.607 10.607Z" />
 </svg>
             </div>
-            <input type="text" id="subject-search" class="block w-full p-2 ps-10 text-sm text-gray-900 border border-gray-300 rounded-lg bg-gray-50 focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:border-gray-600 dark:placeholder-gray-400 dark:text-white dark:focus:ring-blue-500 dark:focus:border-blue-500" placeholder="Search subjects..." required style="border-radius: 15px;"/>
+            <input type="text" id="subject-search" class="block w-full p-2 ps-10 text-sm text-gray-900 border border-gray-300 rounded-lg bg-gray-50 focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:border-gray-600 dark:placeholder-gray-400 dark:text-white dark:focus:ring-blue-500 dark:focus:border-blue-500" placeholder="Search Semester..." required style="border-radius: 15px;"/>
         </div>
     </form>
     <ol class="mt-3 divide-y divide-y-gray-200 dark:divide-gray-700 overflow-y-auto dynamic-ol-height"></ol>
@@ -833,8 +935,8 @@ function renderSubfolders(subfolders) {
     margin-top: 5px;
     margin-bottom: 5px;
     margin-right: 7px;">
-        <div class="w-12 h-12 bg-gray-200 rounded-full flex-shrink-0 mr-3">
-          <img class="w-7 h-7 flex items-center justify-center" src="./Folder_SVG.svg" alt="Folder Icon" style="margin-top: 10px; margin-left: 10px;"/>
+        <div class="w-12 h-12 bg-white shadow-xl rounded-full flex-shrink-0 mr-3">
+          <img class="w-8 h-8 flex items-center justify-center" src="./Folder_SVG.svg" alt="Folder Icon" style="margin-top: 8px; margin-left: 8px;"/>
         </div>
         <div class="text-base font-normal text-gray-600 dark:text-gray-400 sm:flex-1">
           <span class="font-medium text-gray-900 dark:text-white group-hover:text-gray-200">${folder.name}</span>
@@ -854,7 +956,11 @@ function renderSubfolders(subfolders) {
   footerBottom.classList.remove("hidden");
   footerBottom.style.bottom = "0px"; // Reset footer
   const menuButton = document.getElementById("menu-button");
-  if (menuButton) menuButton.style.bottom = "80px";
+  if (menuButton) {
+    menuButton.style.bottom = "80px";
+    menuButton.classList.remove("hidden-right");
+    flotingSvg.classList.remove("hidden");
+  }
   adjustMainMargin();
 
   let lastOlScrollTop = 0;
@@ -1045,23 +1151,29 @@ function renderFiles(files) {
       </div>
     `;
 
-    const pdfIcon = `<svg fill="none" aria-hidden="true" class="w-7 h-7 shrink-0 ${
-      window.innerWidth < 768 ? "md:w-7 md:h-7" : ""
-    }" viewBox="0 0 20 21">
-        <g clip-path="url(#clip0_3173_1381)">
-          <path fill="#E2E5E7" d="M5.024.5c-.688 0-1.25.563-1.25 1.25v17.5c0 .688.562 1.25 1.25 1.25h12.5c.687 0 1.25-.563 1.25-1.25V5.5l-5-5h-8.75z"></path>
-          <path fill="#B0B7BD" d="M15.024 5.5h3.75l-5-5v3.75c0 .688.562 1.25 1.25 1.25z"></path>
-          <path fill="#CAD1D8" d="M18.774 9.25l-3.75-3.75h3.75v3.75z"></path>
-          <path fill="#F15642" d="M16.274 16.75a.627.627 0 01-.625.625H1.899a.627.627 0 01-.625-.625V10.5c0-.344.281-.625.625-.625h13.75c.344 0 .625.281.625.625v6.25z"></path>
-          <path fill="#fff" d="M3.998 12.342c0-.165.13-.345.34-.345h1.154c.65 0 1.235.435 1.235 1.269 0 .79-.585 1.23-1.235 1.23h-.834v.66c0 .22-.14.344-.32.344a.337.337 0 01-.34-.344v-2.814zm.66.284v1.245h.834c.335 0 .6-.295.6-.605 0-.35-.265-.64-.6-.64h-.834zM7.706 15.5c-.165 0-.345-.09-.345-.31v-2.838c0-.18.18-.31.345-.31H8.85c2.284 0 2.234 3.458.045 3.458h-1.19zm.315-2.848v2.239h.83c1.349 0 1.409-2.24 0-2.24h-.83zM11.894 13.486h1.274c.18 0 .36.18.36.355 0 .165-.18.3-.36.3h-1.274v1.049c0 .175-.124.31-.3.31-.22 0-.354-.135-.354-.31v-2.839c0-.18.135-.31 .355-.31h1.754c.2 0 .35 .1 .35 .3 0 .2-.15 .3-.35 .3h-1.455v.795"></path>
-          <path fill="#CAD1D8" d="M15.649 17.375H3.774V18h11.875a.627.627 0 00.625-.625v-.625a.627.627 0 01-.625.625z"></path>
+    const pdfIcon = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 75.320129 92.604164"
+        style=" height: 35px; width: 35px; ">
+        <g transform="translate(53.548057 -183.975276) scale(1.4843)">
+            <path fill="#ff2116"
+                d="M-29.632812 123.94727c-3.551967 0-6.44336 2.89347-6.44336 6.44531v49.49804c0 3.55185 2.891393 6.44532 6.44336 6.44532H8.2167969c3.5519661 0 6.4433591-2.89335 6.4433591-6.44532v-40.70117s.101353-1.19181-.416015-2.35156c-.484969-1.08711-1.275391-1.84375-1.275391-1.84375a1.0584391 1.0584391 0 0 0-.0059-.008l-9.3906254-9.21094a1.0584391 1.0584391 0 0 0-.015625-.0156s-.8017392-.76344-1.9902344-1.27344c-1.39939552-.6005-2.8417968-.53711-2.8417968-.53711l.021484-.002z"
+                color="#000" font-family="sans-serif" overflow="visible" paint-order="markers fill stroke"
+                style="line-height:normal;font-variant-ligatures:normal;font-variant-position:normal;font-variant-caps:normal;font-variant-numeric:normal;font-variant-alternates:normal;font-feature-settings:normal;text-indent:0;text-align:start;text-decoration-line:none;text-decoration-style:solid;text-decoration-color:#000000;text-transform:none;text-orientation:mixed;white-space:normal;shape-padding:0;isolation:auto;mix-blend-mode:normal;solid-color:#000000;solid-opacity:1">
+            </path>
+            <path fill="#f5f5f5"
+                d="M-29.632812 126.06445h28.3789058a1.0584391 1.0584391 0 0 0 .021484 0s1.13480448.011 1.96484378.36719c.79889772.34282 1.36536982.86176 1.36914062.86524.0000125.00001.00391.004.00391.004l9.3671868 9.18945s.564354.59582.837891 1.20899c.220779.49491.234375 1.40039.234375 1.40039a1.0584391 1.0584391 0 0 0-.002.0449v40.74609c0 2.41592-1.910258 4.32813-4.3261717 4.32813H-29.632812c-2.415914 0-4.326172-1.91209-4.326172-4.32813v-49.49804c0-2.41603 1.910258-4.32813 4.326172-4.32813z"
+                color="#000" font-family="sans-serif" overflow="visible" paint-order="markers fill stroke"
+                style="line-height:normal;font-variant-ligatures:normal;font-variant-position:normal;font-variant-caps:normal;font-variant-numeric:normal;font-variant-alternates:normal;font-feature-settings:normal;text-indent:0;text-align:start;text-decoration-line:none;text-decoration-style:solid;text-decoration-color:#000000;text-transform:none;text-orientation:mixed;white-space:normal;shape-padding:0;isolation:auto;mix-blend-mode:normal;solid-color:#000000;solid-opacity:1">
+            </path>
+            <path fill="#ff2116"
+                d="M-23.40766 161.09299c-1.45669-1.45669.11934-3.45839 4.39648-5.58397l2.69124-1.33743 1.04845-2.29399c.57665-1.26169 1.43729-3.32036 1.91254-4.5748l.8641-2.28082-.59546-1.68793c-.73217-2.07547-.99326-5.19438-.52872-6.31588.62923-1.51909 2.69029-1.36323 3.50626.26515.63727 1.27176.57212 3.57488-.18329 6.47946l-.6193 2.38125.5455.92604c.30003.50932 1.1764 1.71867 1.9475 2.68743l1.44924 1.80272 1.8033728-.23533c5.72900399-.74758 7.6912472.523 7.6912472 2.34476 0 2.29921-4.4984914 2.48899-8.2760865-.16423-.8499666-.59698-1.4336605-1.19001-1.4336605-1.19001s-2.3665326.48178-3.531704.79583c-1.202707.32417-1.80274.52719-3.564509 1.12186 0 0-.61814.89767-1.02094 1.55026-1.49858 2.4279-3.24833 4.43998-4.49793 5.1723-1.3991.81993-2.86584.87582-3.60433.13733zm2.28605-.81668c.81883-.50607 2.47616-2.46625 3.62341-4.28553l.46449-.73658-2.11497 1.06339c-3.26655 1.64239-4.76093 3.19033-3.98386 4.12664.43653.52598.95874.48237 2.01093-.16792zm21.21809-5.95578c.80089-.56097.68463-1.69142-.22082-2.1472-.70466-.35471-1.2726074-.42759-3.1031574-.40057-1.1249.0767-2.9337647.3034-3.2403347.37237 0 0 .993716.68678 1.434896.93922.58731.33544 2.0145161.95811 3.0565161 1.27706 1.02785.31461 1.6224.28144 2.0729-.0409zm-8.53152-3.54594c-.4847-.50952-1.30889-1.57296-1.83152-2.3632-.68353-.89643-1.02629-1.52887-1.02629-1.52887s-.4996 1.60694-.90948 2.57394l-1.27876 3.16076-.37075.71695s1.971043-.64627 2.97389-.90822c1.0621668-.27744 3.21787-.70134 3.21787-.70134zm-2.74938-11.02573c.12363-1.0375.1761-2.07346-.15724-2.59587-.9246-1.01077-2.04057-.16787-1.85154 2.23517.0636.8084.26443 2.19033.53292 3.04209l.48817 1.54863.34358-1.16638c.18897-.64151.47882-2.02015.64411-3.06364z">
+            </path>
+            <path fill="#2c2c2c"
+                d="M-20.930423 167.83862h2.364986q1.133514 0 1.840213.2169.706698.20991 1.189489.9446.482795.72769.482795 1.75625 0 .94459-.391832 1.6233-.391833.67871-1.056548.97958-.65772.30087-2.02913.30087h-.818651v3.72941h-1.581322zm1.581322 1.22447v3.33058h.783664q1.049552 0 1.44838-.39184.405826-.39183.405826-1.27345 0-.65772-.265887-1.06355-.265884-.41282-.587747-.50378-.314866-.098-1.000572-.098zm5.50664-1.22447h2.148082q1.560333 0 2.4909318.55276.9375993.55276 1.4133973 1.6443.482791 1.09153.482791 2.42096 0 1.3994-.4338151 2.49793-.4268149 1.09153-1.3154348 1.76324-.8816233.67172-2.5189212.67172h-2.267031zm1.581326 1.26645v7.018h.657715q1.378411 0 2.001144-.9516.6227329-.95858.6227329-2.5539 0-3.5125-2.6238769-3.5125zm6.4722254-1.26645h5.30372941v1.26645H-4.2075842v2.85478h2.9807225v1.26646h-2.9807225v4.16322h-1.5813254z"
+                font-family="Franklin Gothic Medium Cond" letter-spacing="0"
+                style="line-height:125%;-inkscape-font-specification:'Franklin Gothic Medium Cond'"
+                word-spacing="4.26000023"></path>
         </g>
-        <defs>
-          <clipPath id="clip0_3173_1381">
-            <path fill="#fff" d="M0 0h20v20H0z" transform="translate(0 .5)"></path>
-          </clipPath>
-        </defs>
-      </svg>`;
+    </svg>`;
     const docIcon = `<img src="./MsWord_SVG.svg" class="w-7 h-7 shrink-0 ${
       window.innerWidth < 768 ? "md:w-7 md:h-7" : ""
     }" alt="Document Icon" />`;
@@ -1103,7 +1215,7 @@ function renderFiles(files) {
           <div class="text-sm font-normal text-gray-500 dark:text-gray-300 ${
             window.innerWidth < 768 ? "pt-3" : ""
           }">
-            <a href="#" class="file-year font-semibold text-gray-900 dark:text-white hover:underline">${year}</a>
+            <a href="#" class="file-year font-semibold text-gray-900 dark:text-white">${year}</a>
           </div>
         </div>
         <div class="p-3 mb-2 text-xs italic font-normal text-gray-500 border border-gray-200 rounded-lg bg-gray-50 dark:bg-gray-600 dark:border-gray-500 dark:text-gray-300 min-h-fit" style="border-radius: 30px;">
@@ -1157,7 +1269,12 @@ function renderFiles(files) {
   footerBottom.classList.add("hidden");
   footerBottom.style.bottom = "-100px";
   const menuButton = document.getElementById("menu-button");
-  if (menuButton) menuButton.style.bottom = "28px";
+  // if (menuButton) menuButton.style.bottom = "28px";
+  if (menuButton) {
+    menuButton.style.bottom = "28px";
+    menuButton.classList.remove("hidden-right");
+    flotingSvg.classList.remove("hidden");
+  }
   adjustMainMargin();
 }
 
@@ -1543,7 +1660,7 @@ function showErrorMessage(container, message) {
 async function fetchFolders(folderId) {
   try {
     const response = await fetch(
-      `${APPS_SCRIPT_URL}?action=getFolders&folderId=${folderId}`
+      `${SCRIPT_URL}?action=getFolders&folderId=${folderId}`
     );
     if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
     const data = await response.json();
@@ -1559,7 +1676,7 @@ async function fetchFolders(folderId) {
 async function fetchFiles(folderId) {
   try {
     const response = await fetch(
-      `${APPS_SCRIPT_URL}?action=getFiles&folderId=${folderId}`
+      `${SCRIPT_URL}?action=getFiles&folderId=${folderId}`
     );
     if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
     const data = await response.json();
@@ -1569,7 +1686,7 @@ async function fetchFiles(folderId) {
     const parsedFiles = data.files.map((file) => {
       // Updated regex to handle both new and existing filename patterns
       const filePattern =
-        /^([A-Za-z&]+)_(ISE\s*\d|ESE|Combined|Resources_[A-Za-z]+|[A-Za-z]+)_SEM\s*(\d)\s*\(([A-Za-z]+)\)<(\d{4}-\d{2})>(?:\{([A-Za-z0-9_-]+)\})?\.([a-zA-Z]+)/;
+        /^([A-Za-z&]+)_((?:ISE\s*\d|ESE|Combined|Resources_[A-Za-z0-9\s-]+|[A-Za-z0-9\s-]+))_SEM\s*(\d)\s*(?:\(([A-Za-z]+)\))?<(\d{4}-\d{2})>(?:\{([A-Za-z0-9_-]+)\})?\.([a-zA-Z]+)/;
       const match = file.name.match(filePattern);
       if (match) {
         const [
@@ -1585,7 +1702,7 @@ async function fetchFiles(folderId) {
         return {
           ...file,
           course,
-          examType: examType.replace(/\s+/g, ""), // Remove spaces (e.g., "ISE 1" -> "ISE1")
+          examType: examType.trim(),
           semester: `SEM${semester}`,
           uploaderName,
           year,
@@ -1641,7 +1758,7 @@ async function fetchFiles(folderId) {
 async function fetchFileContent(fileId) {
   try {
     const response = await fetch(
-      `${APPS_SCRIPT_URL}?action=getFileContent&fileId=${fileId}`
+      `${SCRIPT_URL}?action=getFileContent&fileId=${fileId}`
     );
     if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
     const data = await response.json();
@@ -1656,7 +1773,7 @@ async function fetchFileContent(fileId) {
 async function fetchTemporaryUrl(fileId) {
   try {
     const response = await fetch(
-      `${APPS_SCRIPT_URL}?action=getTemporaryUrl&fileId=${fileId}`
+      `${SCRIPT_URL}?action=getTemporaryUrl&fileId=${fileId}`
     );
     if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
     const data = await response.json();
@@ -1671,7 +1788,7 @@ async function fetchTemporaryUrl(fileId) {
 async function revokeTemporaryAccess(fileId) {
   try {
     const response = await fetch(
-      `${APPS_SCRIPT_URL}?action=revokeTemporaryAccess&fileId=${fileId}`,
+      `${SCRIPT_URL}?action=revokeTemporaryAccess&fileId=${fileId}`,
       { method: "POST" }
     );
     if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
