@@ -15,6 +15,19 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.4.120/pdf.min.js"></script>
     <link rel="stylesheet" href="style.css">
     <script src="https://unpkg.com/@dotlottie/player-component@2.7.12/dist/dotlottie-player.mjs" type="module"></script>
+    <script>
+        (function () {
+            const icon = "Folder_SVG.svg";
+            fetch(icon)
+                .then(response => response.json())
+                .then(data => {
+                    console.log('icon preloaded and cached');
+                })
+                .catch(error => {
+                    console.warn('Failed to preload icon:', error);
+                });
+        })();
+    </script>
 </head>
 
 <body class="bg-gray-100 h-screen flex flex-col">
