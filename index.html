@@ -17,14 +17,18 @@
     <script src="https://unpkg.com/@dotlottie/player-component@2.7.12/dist/dotlottie-player.mjs" type="module"></script>
     <script>
         (function () {
-            const icon = "Folder_SVG.svg";
-            fetch(icon)
-                .then(response => response.json())
-                .then(data => {
-                    console.log('icon preloaded and cached');
+            const pdfIconUrl = "./PDF_icon.svg";
+
+            fetch(pdfIconUrl)
+                .then(response => {
+                    if (!response.ok) throw new Error("Network response was not ok");
+                    return response.blob();
+                })
+                .then(() => {
+                    console.log("PDF icon preloaded and cached");
                 })
                 .catch(error => {
-                    console.warn('Failed to preload icon:', error);
+                    console.warn("Failed to preload PDF icon:", error);
                 });
         })();
     </script>
@@ -221,10 +225,10 @@
                         </path>
                     </svg>
                     <p id="welcomeMsg1"
-                        class="text-3xl mb-2 font-bold bg-gradient-to-r from-indigo-500 via-purple-500 to-pink-500 bg-clip-text text-transparent">
+                        class="text-5xl mb-2 font-bold bg-gradient-to-r from-indigo-500 via-purple-500 to-pink-500 bg-clip-text text-transparent">
                         Welcome To RPSA
                     </p>
-                    <p id="welcomeMsg2" class="text-base">Resources & PYQs Sharing Application</p>
+                    <p id="welcomeMsg2" class="text-lg">Resources & PYQs Sharing Application</p>
                 </div>
             </div>
             <!-- Content container -->
@@ -233,9 +237,13 @@
                 <div id="loading-content"
                     class="py-8 text-center hidden absolute inset-0 flex items-center justify-center">
                     <div class="inline-block" role="status">
-                        <dotlottie-player
+                        <!-- <dotlottie-player
                             src="https://lottie.host/402d9353-ef6f-4eec-804f-526054a27298/x3kjRKLhFr.lottie"
                             background="transparent" speed="1" style="width: 400px; height: 400px" loop autoplay>
+                        </dotlottie-player> -->
+                        <dotlottie-player id="restarting-lottie"
+                            src="https://lottie.host/264fbdb6-26e3-4189-b390-85c5f7eb09e0/kOSERP7QNV.json"
+                            background="transparent" speed="2.5" style="width: 250px; height: 250px;" loop>
                         </dotlottie-player>
                     </div>
                 </div>
@@ -409,61 +417,56 @@
             <div style="border-radius: 20px;"
                 class="bg-gray-100 rounded-lg overflow-hidden shadow-xl transform transition-all w-full">
                 <!-- Modal header with close button -->
-                <div class="flex items-center justify-between p-4 md:p-5 border-b rounded-t">
-                    <h3 class="text-xl text-gray-700 w-full text-center">
+                <div class="flex flex-col items-center space-y-1 p-4 md:p-5 border-b rounded-t">
+                    <h3 class="text-xl font-medium text-gray-800">
                         Year/Platform
                     </h3>
+                    <p class="text-sm text-gray-500 stack-animation">
+                        Select an option below
+                    </p>
                 </div>
                 <!-- Modal body -->
                 <div style="font-family: 'JetBrains Mono';"
                     class="p-4 md:p-5 text-center overflow-y-auto flex flex-col items-center justify-center">
-                    <p class="mb-3 underline text-base leading-relaxed text-gray-700 stack-animation">Select From Below:
-                    </p>
                     <div class="flex items-center mb-4">
                         <input id="firstYear" type="radio" value="" name="default-radio"
                             class="w-4 h-4 text-blue-600 bg-gray-100 border-gray-300 focus:ring-blue-500 dark:focus:ring-blue-600 dark:ring-offset-gray-800 focus:ring-2 dark:bg-gray-700 dark:border-gray-600 cursor-pointer">
                         <label for="firstYear"
-                            class="ms-2 text-sm font-medium text-gray-600 dark:text-gray-300 cursor-pointer select-none">Ist
-                            Year</label>
+                            class="ms-2 text-sm font-medium text-gray-700 dark:text-gray-300 cursor-pointer select-none">Ist
+                            Year Pyqs</label>
                     </div>
-                    <div class="flex items-center mb-4">
-                        <input id="secondYear" type="radio" value="" name="default-radio"
-                            class="w-4 h-4 text-blue-600 bg-gray-100 border-gray-300 focus:ring-blue-500 dark:focus:ring-blue-600 dark:ring-offset-gray-800 focus:ring-2 dark:bg-gray-700 dark:border-gray-600 cursor-pointer">
-                        <label for="secondYear"
-                            class="ms-2 text-sm font-medium text-gray-600 dark:text-gray-300 cursor-pointer select-none">II-IV
-                            Year</label>
-                    </div>
-                    <div class="flex items-center mb-4">
+                    <div class="flex items-center mb-4" style="border-top: 1.3px solid #adadad;">
                         <input id="firstYearUpload" type="radio" value="" name="default-radio"
-                            class="w-4 h-4 text-blue-600 bg-gray-100 border-gray-300 focus:ring-blue-500 dark:focus:ring-blue-600 dark:ring-offset-gray-800 focus:ring-2 dark:bg-gray-700 dark:border-gray-600 cursor-pointer">
+                            class="w-4 h-4 text-blue-600 bg-gray-100 border-gray-300 focus:ring-blue-500 dark:focus:ring-blue-600 dark:ring-offset-gray-800 focus:ring-2 dark:bg-gray-700 dark:border-gray-600 cursor-pointer mt-3">
                         <label for="firstYearUpload"
-                            class="ms-2 text-sm font-medium text-gray-600 dark:text-gray-300 cursor-pointer select-none">Ist
-                            Year Pyq's
+                            class="ms-2 text-sm font-medium text-gray-700 dark:text-gray-300 cursor-pointer select-none mt-4">Ist
+                            Year Pyqs
                             Upload</label>
                     </div>
                     <div class="flex items-center mb-1">
                         <input id="secondYearUpload" type="radio" value="" name="default-radio"
                             class="w-4 h-4 text-blue-600 bg-gray-100 border-gray-300 focus:ring-blue-500 dark:focus:ring-blue-600 dark:ring-offset-gray-800 focus:ring-2 dark:bg-gray-700 dark:border-gray-600 cursor-pointer">
                         <label for="secondYearUpload"
-                            class="ms-2 text-sm font-medium text-gray-600 dark:text-gray-300 cursor-pointer select-none">II-IV
-                            Pyq's Upload</label>
-                    </div>
-                    <!---------Switch Button------->
-                    <div id="switchButtonContainer"
-                        class="hidden mt-4 flex flex-col sm:flex-row justify-center items-center space-y-2 sm:space-y-0 sm:space-x-4 opacity-0 transform translate-y-4 transition-all duration-500 ease-out">
-                        <a id="switchButton" href="" target="_blank"
-                            class="text-white bg-green-700 hover:bg-green-800 focus:outline-none focus:ring-4 focus:ring-green-300 font-medium rounded-full text-sm px-5 py-2.5 text-center mb-2 dark:bg-green-600 dark:hover:bg-green-700 dark:focus:ring-green-800 inline-flex items-center transform hover:scale-105 transition-transform duration-200">
-                            <span class="plus-jakarta-sans">Switch<svg class="ml-2 w-5 h-5 inline-block text-blue-200"
-                                    xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"
-                                    stroke-width="1.5" stroke="currentColor">
-                                    <path stroke-linecap="round" stroke-linejoin="round"
-                                        d="M7.5 21 3 16.5m0 0L7.5 12M3 16.5h13.5m0-13.5L21 7.5m0 0L16.5 12M21 7.5H7.5" />
-                                </svg></span>
-                        </a>
+                            class="ms-2 text-sm font-medium text-gray-700 dark:text-gray-300 cursor-pointer select-none">IInd-IVth
+                            Year
+                            Pyqs & Resources Upload</label>
                     </div>
                 </div>
+                <!---------Switch Button------->
+                <div id="switchButtonContainer"
+                    class="hidden mb-2 flex flex-col sm:flex-row justify-center items-center space-y-2 sm:space-y-0 sm:space-x-4 opacity-0 transform translate-y-4 transition-all duration-500 ease-out">
+                    <a id="switchButton" href="" target="_blank"
+                        class="text-white bg-green-700 hover:bg-green-800 focus:outline-none focus:ring-4 focus:ring-green-300 font-medium rounded-full text-sm px-5 py-2.5 text-center mb-2 dark:bg-green-600 dark:hover:bg-green-700 dark:focus:ring-green-800 inline-flex items-center transform hover:scale-105 transition-transform duration-200">
+                        <span class="plus-jakarta-sans">Switch<svg class="ml-2 w-5 h-5 inline-block text-blue-200"
+                                xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5"
+                                stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round"
+                                    d="M7.5 21 3 16.5m0 0L7.5 12M3 16.5h13.5m0-13.5L21 7.5m0 0L16.5 12M21 7.5H7.5" />
+                            </svg></span>
+                    </a>
+                </div>
                 <button type="button" id="closeSwitchModal"
-                    class="absolute right-2 top-2 text-gray-200 bg-gray-600 hover:bg-blue-700 hover:text-gray-100 rounded-2xl text-sm w-8 h-8 inline-flex justify-center items-center dark:hover:bg-blue-600 dark:hover:text-white">
+                    class="absolute right-2 top-2 text-gray-200 bg-gray-600 hover:bg-blue-700 hover:text-gray-100 rounded-full text-sm w-8 h-8 inline-flex justify-center items-center dark:hover:bg-blue-600 dark:hover:text-white">
                     <svg class="w-3 h-3" aria-hidden="true" xmlns="http://www.w3.org/2000/svg" fill="none"
                         viewBox="0 0 14 14">
                         <path stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
@@ -476,8 +479,28 @@
     </div>
     <!-- JavaScript -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/flowbite/2.3.0/flowbite.min.js"></script>
-    <script src="app2.js"></script>
+    <script src="script.js"></script>
     <script>
+        //To restart animation everytime
+        document.addEventListener("DOMContentLoaded", () => {
+            const lottiePlayer = document.getElementById('restarting-lottie');
+            const observer = new IntersectionObserver((entries) => {
+                entries.forEach(entry => {
+                    if (entry.isIntersecting) {
+                        console.log("Lottie is visible. Restarting animation.");
+                        entry.target.stop();
+                        entry.target.play();
+                    } else {
+                        console.log("Lottie is not visible. Stopping animation.");
+                        entry.target.stop();
+                    }
+                });
+            }, {
+                threshold: 0
+            });
+            observer.observe(lottiePlayer);
+        });
+
         const menuButton = document.getElementById('menu-button');
         const drawer = document.getElementById('bottom-drawer');
         const overlay = document.getElementById('overlay');
