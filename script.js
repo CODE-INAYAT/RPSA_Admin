@@ -477,7 +477,7 @@ function renderFolders(folders) {
             <div class="flex-1">
               <div class="folder-name">${folder.name}</div>
               <div class="text-xs text-gray-500">${
-                folder.isSubject ? "Subject" : "Course"
+                folder.isSubject ? "Subject" : "Department"
               }</div>
             </div>
           </div>
