@@ -1668,7 +1668,7 @@ async function fetchFiles(folderId) {
     const parsedFiles = data.files.map((file) => {
       // Updated regex to handle both new and existing filename patterns
       const filePattern =
-        /^([A-Za-z&]+)_((?:ISE\s*\d|ESE|Combined|Resources_[A-Za-z0-9\s-]+|[A-Za-z0-9\s-]+))_SEM\s*(\d)\s*(?:\(([A-Za-z]+)\))?<(\d{4}-\d{2})>(?:\{([A-Za-z0-9_-]+)\})?\.([a-zA-Z]+)/;
+        /^([A-Za-z&]+)_((?:ISE\s*\d|ESE|Combined|Resources_[^_]+|[^_]+))_SEM\s*(\d)\s*(?:\(([A-Za-z]+)\))?<(\d{4}-\d{2})>(?:\{([A-Za-z0-9_-]+)\})?\.([a-zA-Z]+)/;
       const match = file.name.match(filePattern);
       if (match) {
         const [
