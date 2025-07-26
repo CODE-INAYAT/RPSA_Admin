@@ -2091,7 +2091,7 @@ document.addEventListener("DOMContentLoaded", function () {
     });
   }
 
-  // Alternative: Add event listener to any element with class 'switch-trigger'
+  //event listener to any element with class 'switch-trigger'
   const switchTriggers = document.querySelectorAll(".switch-trigger");
   switchTriggers.forEach((trigger) => {
     trigger.addEventListener("click", function (e) {
@@ -2099,4 +2099,52 @@ document.addEventListener("DOMContentLoaded", function () {
       showModal();
     });
   });
+});
+
+
+// Show Info Modal - RPSA
+function showInfoModal() {
+  setTimeout(() => {
+    const modal = document.getElementById("infoModal");
+
+    modal.classList.remove("hidden");
+    modal.classList.add("modal-hidden");
+
+    requestAnimationFrame(() => {
+      modal.classList.remove("modal-hidden");
+      modal.classList.add("modal-visible");
+    });
+  }, 4600);
+}
+
+// Close modal with animation
+function closeInfoModal() {
+  const modal = document.getElementById("infoModal");
+
+  modal.classList.remove("modal-visible");
+  modal.classList.add("modal-closing");
+
+  setTimeout(() => {
+    modal.classList.add("hidden");
+    modal.classList.remove("modal-closing");
+  }, 400);
+}
+
+// Event listeners
+document.addEventListener("DOMContentLoaded", function () {
+  showInfoModal();
+
+  const gotItBtn = document.getElementById("iUnderstandBtn");
+  if (gotItBtn) {
+    gotItBtn.addEventListener("click", closeInfoModal);
+  }
+
+  const modal = document.getElementById("infoModal");
+  if (modal) {
+    modal.addEventListener("click", function (e) {
+      if (e.target === modal) {
+        closeInfoModal();
+      }
+    });
+  }
 });
