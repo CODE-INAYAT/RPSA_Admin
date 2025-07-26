@@ -2148,3 +2148,48 @@ document.addEventListener("DOMContentLoaded", function () {
     });
   }
 });
+
+//Restrictions//
+(function () {
+  "use strict";
+  document.addEventListener("DOMContentLoaded", function () {
+    // Disable right-click context menu
+    document.addEventListener("contextmenu", (e) => e.preventDefault());
+
+    // Disable keyboard shortcuts
+    document.addEventListener("keydown", function (e) {
+      // F12, Ctrl+Shift+I/J/C, Cmd+Opt+I/J/C
+      if (
+        e.key === "F12" ||
+        (e.ctrlKey &&
+          e.shiftKey &&
+          ["I", "J", "C"].includes(e.key.toUpperCase())) ||
+        (e.metaKey && e.altKey && ["I", "J", "C"].includes(e.key.toUpperCase()))
+      ) {
+        e.preventDefault();
+      }
+      // Ctrl+U or Cmd+Opt+U (View Source)
+      if (
+        (e.ctrlKey && e.key.toUpperCase() === "U") ||
+        (e.metaKey && e.altKey && e.key.toUpperCase() === "U")
+      ) {
+        e.preventDefault();
+      }
+      // Ctrl+P or Cmd+P (Print)
+      if ((e.ctrlKey || e.metaKey) && e.key.toUpperCase() === "P") {
+        e.preventDefault();
+      }
+      // Ctrl+S or Cmd+S (Save) and Win+Shift+S (Screenshot Tool)
+      if ((e.ctrlKey || e.metaKey) && e.key.toUpperCase() === "S") {
+        e.preventDefault();
+      }
+    });
+
+    // Attempt to block screenshots via PrintScreen key
+    document.addEventListener("keyup", function (e) {
+      if (e.key === "PrintScreen") {
+        navigator.clipboard.writeText("");
+      }
+    });
+  });
+})();
