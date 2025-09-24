@@ -55,6 +55,8 @@ let cacheTimestamp = new Date().toDateString();
 let pollingIntervalId = null;
 let expectedPin = null; // To store the PIN extracted from filename
 let currentGoogleDocId = null; // To store the Google Doc ID extracted from filename
+// Routing control
+let isProgrammaticNavigation = false; // prevent redundant hash updates
 
 // A global object to manage animation timers and prevent overlaps
 const progressAnimation = {
@@ -198,6 +200,12 @@ async function initApp() {
       foldersList,
       "Failed to load folders. Please refresh the page."
     );
+  }
+  // Handle any incoming route after folders are ready
+  try {
+    await handleRoute();
+  } catch (e) {
+    console.warn("Routing on init failed:", e);
   }
   initializeAnimations();
 }
@@ -509,15 +517,61 @@ function renderFolders(folders) {
 
     // Ensure loading spinner is hidden after rendering
     loadingRow.classList.add("hidden");
+
+    // Apply highlight if a course is currently selected
+    updateSelectedCourseHighlight();
   }, 0); // Delay if needed or remove for synchronous rendering
+}
+
+// Highlight the currently selected course in the left pane
+function updateSelectedCourseHighlight() {
+  const selectedId = currentCourse ? currentCourse.id : null;
+  const rows = foldersList.querySelectorAll(".folder-item");
+  rows.forEach((row) => {
+    const isSelected = !!selectedId && row.dataset.id === selectedId;
+
+    // Elements inside the row
+    const cell = row.querySelector("th");
+    const avatarWrapper = row.querySelector("div.w-12.h-12");
+
+    // Base hover/background and accent
+    if (isSelected) {
+      // Row-level accents
+      row.classList.add("bg-blue-50", "hover:bg-blue-50", "dark:bg-blue-900");
+      row.classList.remove("hover:bg-gray-50", "bg-white");
+
+      // Cell-level left border for clearer accent in tables
+      if (cell) {
+        cell.classList.add("border-l-4", "border-blue-500");
+      }
+    } else {
+      // Reset row-level accents
+      row.classList.remove(
+        "bg-blue-50",
+        "hover:bg-blue-50",
+        "dark:bg-blue-900"
+      );
+      row.classList.add("hover:bg-gray-50", "bg-white");
+
+      // Remove cell-level left border
+      if (cell) {
+        cell.classList.remove("border-l-4", "border-blue-500");
+      }
+    }
+
+    // Emphasize folder name color when selected
+    const nameEl = row.querySelector(".folder-name");
+    if (nameEl) {
+      nameEl.classList.toggle("text-blue-700", isSelected);
+      nameEl.classList.toggle("dark:text-blue-300", isSelected);
+      nameEl.classList.toggle("font-semibold", isSelected);
+    }
+  });
 }
 
 // Updated selectFolder to handle empty folders
 async function selectFolder(folderId, folderName, isSubject) {
   currentFolderId = folderId;
-  foldersList.querySelectorAll(".folder-item").forEach((item) => {
-    item.classList.toggle("bg-gray-100", item.dataset.id === folderId);
-  });
   welcomeMessage.remove();
   contentContainer.classList.remove("hidden");
 
@@ -533,11 +587,29 @@ async function selectFolder(folderId, folderName, isSubject) {
       );
       renderFiles(folderCache[folderId].content);
       preloadFiles(folderCache[folderId].content);
+      // Keep course highlight when navigating into a subject
+      updateSelectedCourseHighlight();
+      // Update route hash for subject
+      if (currentCourse) {
+        const targetHash = `#/course/${currentCourse.id}/subject/${folderId}`;
+        if (window.location.hash !== targetHash) {
+          isProgrammaticNavigation = true;
+          window.location.hash = targetHash;
+        }
+      }
     } else {
       currentCourse = { id: folderId, name: folderName };
       currentSubject = null;
       subjectHeader.classList.add("hidden");
       renderSubfolders(folderCache[folderId].content);
+      // Highlight the selected course in the left pane
+      updateSelectedCourseHighlight();
+      // Update route hash for course
+      const targetHash = `#/course/${folderId}`;
+      if (window.location.hash !== targetHash) {
+        isProgrammaticNavigation = true;
+        window.location.hash = targetHash;
+      }
     }
     startPolling(folderId, isSubject);
     return;
@@ -556,11 +628,29 @@ async function selectFolder(folderId, folderName, isSubject) {
         folderName
       );
       await loadFiles(folderId);
+      // Maintain left-pane highlight for the current course
+      updateSelectedCourseHighlight();
+      // Update route hash for subject
+      if (currentCourse) {
+        const targetHash = `#/course/${currentCourse.id}/subject/${folderId}`;
+        if (window.location.hash !== targetHash) {
+          isProgrammaticNavigation = true;
+          window.location.hash = targetHash;
+        }
+      }
     } else {
       currentCourse = { id: folderId, name: folderName };
       currentSubject = null;
       subjectHeader.classList.add("hidden");
       await loadSubfolders(folderId);
+      // Highlight the selected course in the left pane
+      updateSelectedCourseHighlight();
+      // Update route hash for course
+      const targetHash = `#/course/${folderId}`;
+      if (window.location.hash !== targetHash) {
+        isProgrammaticNavigation = true;
+        window.location.hash = targetHash;
+      }
     }
     startPolling(folderId, isSubject);
   } catch (error) {
@@ -588,7 +678,9 @@ function updateBreadcrumb(courseName, subjectName = null) {
   const courseLi = document.createElement("li");
   courseLi.className = "inline-flex items-center";
   courseLi.innerHTML = `
-      <a href="#" class="inline-flex items-center text-sm font-medium text-gray-700 hover:text-blue-800 dark:text-gray-400 dark:hover:text-white">
+      <a href="#/course/${
+        currentCourse ? currentCourse.id : ""
+      }" class="inline-flex items-center text-sm font-medium text-gray-700 hover:text-blue-800 dark:text-gray-400 dark:hover:text-white">
       <svg class="w-4 h-4 me-2.5" aria-hidden="true" xmlns="http://www.w3.org/2000/svg" fill="currentColor" viewBox="0 0 48 48">
         <path
             d="M39.5,43h-9c-1.381,0-2.5-1.119-2.5-2.5v-9c0-1.105-0.895-2-2-2h-4c-1.105,0-2,0.895-2,2v9c0,1.381-1.119,2.5-2.5,2.5h-9	C7.119,43,6,41.881,6,40.5V21.413c0-2.299,1.054-4.471,2.859-5.893L23.071,4.321c0.545-0.428,1.313-0.428,1.857,0L39.142,15.52	C40.947,16.942,42,19.113,42,21.411V40.5C42,41.881,40.881,43,39.5,43z" />
@@ -596,11 +688,6 @@ function updateBreadcrumb(courseName, subjectName = null) {
           ${courseName}
       </a>
   `;
-  courseLi.querySelector("a").addEventListener("click", (e) => {
-    e.preventDefault();
-    if (currentCourse)
-      selectFolder(currentCourse.id, currentCourse.name, false);
-  });
   breadcrumbList.appendChild(courseLi);
 
   // Subject breadcrumb
@@ -611,13 +698,13 @@ function updateBreadcrumb(courseName, subjectName = null) {
               <svg class="rtl:rotate-180 w-3 h-3 text-gray-400 mx-1" aria-hidden="true" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 6 10">
                   <path stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="m1 9 4-4-4-4"/>
               </svg>
-              <a href="#" class="ms-1 text-sm font-medium text-blue-600 hover:text-blue-800 md:ms-2 dark:text-gray-400 dark:hover:text-white">${subjectName}</a>
+              <a href="#/course/${
+                currentCourse ? currentCourse.id : ""
+              }/subject/${
+      currentFolderId || ""
+    }" class="ms-1 text-sm font-medium text-blue-600 hover:text-blue-800 md:ms-2 dark:text-gray-400 dark:hover:text-white">${subjectName}</a>
           </div>
       `;
-    subjectLi.querySelector("a").addEventListener("click", (e) => {
-      e.preventDefault();
-      if (currentFolderId) selectFolder(currentFolderId, subjectName, true);
-    });
     breadcrumbList.appendChild(subjectLi);
   }
 
@@ -632,15 +719,25 @@ function updateBreadcrumb(courseName, subjectName = null) {
   ];
 
   // Search bar HTML
+  const isMobile = window.innerWidth < 768;
+  const searchButtonHtml = isMobile
+    ? `<button type="button" id="mobile-search-close" class="absolute right-2 top-1/2 transform -translate-y-1/2 h-8 w-8 rounded-full bg-blue-50 hover:bg-blue-100 text-blue-600 dark:bg-gray-600 dark:hover:bg-gray-500 dark:text-blue-200 flex items-center justify-center shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-300" aria-label="Close search"><svg class="w-4 h-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.8" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18 18 6M6 6l12 12" /></svg></button>`
+    : `<button type="submit" class="absolute top-0 end-0 p-2.5 text-sm font-medium h-full text-blue-600" aria-label="Search">
+         <svg class="w-5 h-5 text-blue-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+           <path stroke-linecap="round" stroke-linejoin="round" d="m21 21-5.197-5.197m0 0A7.5 7.5 0 1 0 5.196 5.196a7.5 7.5 0 0 0 10.607 10.607Z" />
+         </svg>
+         <span class="sr-only">Search</span>
+       </button>`;
+
   const searchHtml = `
       <form class="max-w-lg w-full">
           <div class="flex">
               <label for="category-select" class="sr-only">Category</label>
               <div class="relative z-0">
                   <select id="category-select" class="cursor-pointer bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-s-lg focus:ring-blue-500 focus:border-blue-500 block p-2.5 dark:bg-gray-700 dark:border-gray-600 dark:placeholder-gray-400 dark:text-white dark:focus:ring-blue-500 dark:focus:border-blue-500 ${
-                    window.innerWidth < 768 ? "truncate-select" : ""
+                    isMobile ? "truncate-select" : ""
                   }" style="border-top-left-radius: 15px; border-bottom-left-radius: 15px; ${
-    window.innerWidth < 768
+    isMobile
       ? "width: 70px; text-overflow: ellipsis; white-space: nowrap; overflow: hidden;"
       : ""
   }">
@@ -653,14 +750,9 @@ function updateBreadcrumb(courseName, subjectName = null) {
                         .join("")}
                   </select>
               </div>
-              <div class="relative w-full">
-                  <input type="text" id="search-dropdown" class="block p-2.5 w-full z-20 text-sm text-gray-900 bg-gray-50 rounded-e-lg border-s-gray-50 border-s-2 border border-gray-300 focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:border-s-gray-700 dark:border-gray-600 dark:placeholder-gray-400 dark:text-white dark:focus:border-blue-500" placeholder="Search files..." required style="border-top-right-radius: 15px; border-bottom-right-radius: 15px;"/>
-                  <button type="submit" class="absolute top-0 end-0 p-2.5 text-sm font-medium h-full text-blue-600">
-                  <svg class="w-5 h-5 text-blue-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="size-6">
-  <path stroke-linecap="round" stroke-linejoin="round" d="m21 21-5.197-5.197m0 0A7.5 7.5 0 1 0 5.196 5.196a7.5 7.5 0 0 0 10.607 10.607Z" />
-</svg>
-                      <span class="sr-only">Search</span>
-                  </button>
+        <div class="relative w-full">
+          <input type="text" id="search-dropdown" class="block p-2.5 pr-12 w-full z-20 text-sm text-gray-900 bg-gray-50 rounded-e-lg border-s-gray-50 border-s-2 border border-gray-300 focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:border-s-gray-700 dark:border-gray-600 dark:placeholder-gray-400 dark:text-white dark:focus:border-blue-500" placeholder="Search files..." required style="border-top-right-radius: 15px; border-bottom-right-radius: 15px;"/>
+                  ${searchButtonHtml}
               </div>
           </div>
       </form>
@@ -719,11 +811,6 @@ function updateBreadcrumb(courseName, subjectName = null) {
       searchBarContainer.classList.remove("block");
       breadcrumbNav.classList.remove("hidden");
       searchToggle.classList.remove("hidden");
-
-      // Remove hash when closing
-      if (window.location.hash === "#search") {
-        history.replaceState("", document.title, window.location.pathname);
-      }
     };
 
     searchToggle.addEventListener("click", () => {
@@ -732,9 +819,6 @@ function updateBreadcrumb(courseName, subjectName = null) {
       breadcrumbNav.classList.add("hidden");
       searchToggle.classList.add("hidden");
       searchInput.focus();
-
-      // Add hash when opening search
-      window.location.hash = "search";
     });
 
     // Close search bar on outside click
@@ -747,14 +831,106 @@ function updateBreadcrumb(courseName, subjectName = null) {
       }
     });
 
-    // Handle hash change (back button)
-    window.addEventListener("hashchange", () => {
-      if (window.location.hash !== "#search") {
+    // Wire up mobile close button inside the input on mobile
+    const mobileCloseBtn = searchBarContainer.querySelector(
+      "#mobile-search-close"
+    );
+    if (mobileCloseBtn) {
+      mobileCloseBtn.addEventListener("click", (e) => {
+        e.preventDefault();
+        e.stopPropagation();
         closeSearchBar();
-      }
-    });
+      });
+    }
   }
 }
+
+// ------------------------
+// Simple Hash Router
+// Routes:
+//   #/course/:courseId
+//   #/course/:courseId/subject/:subjectId
+// Note: Breadcrumbs always display original names; routes carry IDs
+// ------------------------
+function parseRoute() {
+  const hash = window.location.hash || "";
+  if (!hash || hash === "#" || hash === "#/") return { route: "home" };
+  if (hash === "#search" || hash.startsWith("#search"))
+    return { route: "search" };
+  if (!hash.startsWith("#/")) return { route: "unknown" };
+  const parts = hash.slice(2).split("/"); // remove '#/'
+  if (parts[0] === "course" && parts[1]) {
+    const courseId = decodeURIComponent(parts[1]);
+    if (parts[2] === "subject" && parts[3]) {
+      const subjectId = decodeURIComponent(parts[3]);
+      return { route: "subject", courseId, subjectId };
+    }
+    return { route: "course", courseId };
+  }
+  return { route: "unknown" };
+}
+
+async function ensureRootFoldersLoaded() {
+  // If allFolders isn't populated, load root folders
+  if (!Array.isArray(allFolders) || allFolders.length === 0) {
+    await loadFolders(ROOT_FOLDER_ID);
+  }
+}
+
+async function handleRoute() {
+  // Prevent reacting to our own hash set immediately
+  if (isProgrammaticNavigation) {
+    // Let the UI update and then clear the flag
+    isProgrammaticNavigation = false;
+    return;
+  }
+  const route = parseRoute();
+  if (route.route === "home" || route.route === "search") return; // no-op
+
+  await ensureRootFoldersLoaded();
+
+  if (route.route === "course") {
+    const course = allFolders.find((f) => f.id === route.courseId);
+    if (course) {
+      await selectFolder(course.id, course.name, false);
+    } else {
+      console.warn("Course not found for id:", route.courseId);
+    }
+  } else if (route.route === "subject") {
+    const course = allFolders.find((f) => f.id === route.courseId);
+    if (!course) {
+      console.warn("Course not found for id:", route.courseId);
+      return;
+    }
+    // First navigate to course to set context
+    await selectFolder(course.id, course.name, false);
+    // Ensure subfolders are available to retrieve subject name
+    let subfolders;
+    if (folderCache[course.id]?.type === "folders") {
+      subfolders = folderCache[course.id].content;
+    } else {
+      subfolders = await fetchFolders(course.id);
+      folderCache[course.id] = { type: "folders", content: subfolders };
+    }
+    const subject = subfolders.find((s) => s.id === route.subjectId);
+    if (subject) {
+      await selectFolder(subject.id, subject.name, true);
+    } else {
+      console.warn("Subject not found for id:", route.subjectId);
+    }
+  }
+}
+
+// React to user navigation via hash changes
+window.addEventListener("hashchange", () => {
+  // Ignore the special mobile search hash, it's handled elsewhere
+  if (
+    window.location.hash === "#search" ||
+    window.location.hash.startsWith("#search")
+  )
+    return;
+  handleRoute().catch((e) => console.error("Route error:", e));
+});
 
 // Updated filterFiles to handle new class names
 function filterFiles(searchTerm, category) {
@@ -1803,9 +1979,9 @@ document.addEventListener("DOMContentLoaded", function () {
   // URL mappings for each radio button
   const urlMappings = {
     firstYear: "https://pyqs-isk.pages.dev",
-    secondYear: "https://rpsa-isk.pages.dev",
+    secondYear: "https://cups-user.vercel.app",
     firstYearUpload: "https://1yr-pyqsupload-isk.pages.dev",
-    secondYearUpload: "https://rpsaupload-isk.pages.dev",
+    secondYearUpload: "https://cups-admin.vercel.app",
   };
 
   // Function to show the modal
@@ -2091,7 +2267,7 @@ document.addEventListener("DOMContentLoaded", function () {
     });
   }
 
-  //event listener to any element with class 'switch-trigger'
+  // Alternative: Add event listener to any element with class 'switch-trigger'
   const switchTriggers = document.querySelectorAll(".switch-trigger");
   switchTriggers.forEach((trigger) => {
     trigger.addEventListener("click", function (e) {
@@ -2100,96 +2276,3 @@ document.addEventListener("DOMContentLoaded", function () {
     });
   });
 });
-
-
-// Show Info Modal - RPSA
-function showInfoModal() {
-  setTimeout(() => {
-    const modal = document.getElementById("infoModal");
-
-    modal.classList.remove("hidden");
-    modal.classList.add("modal-hidden");
-
-    requestAnimationFrame(() => {
-      modal.classList.remove("modal-hidden");
-      modal.classList.add("modal-visible");
-    });
-  }, 4600);
-}
-
-// Close modal with animation
-function closeInfoModal() {
-  const modal = document.getElementById("infoModal");
-
-  modal.classList.remove("modal-visible");
-  modal.classList.add("modal-closing");
-
-  setTimeout(() => {
-    modal.classList.add("hidden");
-    modal.classList.remove("modal-closing");
-  }, 400);
-}
-
-// Event listeners
-document.addEventListener("DOMContentLoaded", function () {
-  showInfoModal();
-
-  const gotItBtn = document.getElementById("iUnderstandBtn");
-  if (gotItBtn) {
-    gotItBtn.addEventListener("click", closeInfoModal);
-  }
-
-  const modal = document.getElementById("infoModal");
-  if (modal) {
-    modal.addEventListener("click", function (e) {
-      if (e.target === modal) {
-        closeInfoModal();
-      }
-    });
-  }
-});
-
-//Restrictions//
-(function () {
-  "use strict";
-  document.addEventListener("DOMContentLoaded", function () {
-    // Disable right-click context menu
-    document.addEventListener("contextmenu", (e) => e.preventDefault());
-
-    // Disable keyboard shortcuts
-    document.addEventListener("keydown", function (e) {
-      // F12, Ctrl+Shift+I/J/C, Cmd+Opt+I/J/C
-      if (
-        e.key === "F12" ||
-        (e.ctrlKey &&
-          e.shiftKey &&
-          ["I", "J", "C"].includes(e.key.toUpperCase())) ||
-        (e.metaKey && e.altKey && ["I", "J", "C"].includes(e.key.toUpperCase()))
-      ) {
-        e.preventDefault();
-      }
-      // Ctrl+U or Cmd+Opt+U (View Source)
-      if (
-        (e.ctrlKey && e.key.toUpperCase() === "U") ||
-        (e.metaKey && e.altKey && e.key.toUpperCase() === "U")
-      ) {
-        e.preventDefault();
-      }
-      // Ctrl+P or Cmd+P (Print)
-      if ((e.ctrlKey || e.metaKey) && e.key.toUpperCase() === "P") {
-        e.preventDefault();
-      }
-      // Ctrl+S or Cmd+S (Save) and Win+Shift+S (Screenshot Tool)
-      if ((e.ctrlKey || e.metaKey) && e.key.toUpperCase() === "S") {
-        e.preventDefault();
-      }
-    });
-
-    // Attempt to block screenshots via PrintScreen key
-    document.addEventListener("keyup", function (e) {
-      if (e.key === "PrintScreen") {
-        navigator.clipboard.writeText("");
-      }
-    });
-  });
-})();
