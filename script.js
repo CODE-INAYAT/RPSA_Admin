@@ -1979,9 +1979,9 @@ document.addEventListener("DOMContentLoaded", function () {
   // URL mappings for each radio button
   const urlMappings = {
     firstYear: "https://pyqs-isk.pages.dev",
-    secondYear: "https://cups-user.vercel.app",
+    secondYear: "https://rpsa-isk.pages.dev",
     firstYearUpload: "https://1yr-pyqsupload-isk.pages.dev",
-    secondYearUpload: "https://cups-admin.vercel.app",
+    secondYearUpload: "https://rpsaupload-isk.pages.dev",
   };
 
   // Function to show the modal
