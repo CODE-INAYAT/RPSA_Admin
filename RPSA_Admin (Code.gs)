@@ -1,0 +1,293 @@
+//--- Original CODE ---- //
+const ROOT_FOLDER_ID = '1zRtyoWbD8SZDYZeAsV8QIJ95wbW0BbVu';
+
+//doGet - Handle HTTP GET requests to the web app
+function doGet(e) {
+  try {
+    const output = ContentService.createTextOutput();
+    output.setMimeType(ContentService.MimeType.JSON);
+    const action = e.parameter.action;
+    let result = {};
+    switch (action) {
+      case 'getFolders':
+        result = handleGetFolders(e.parameter.folderId);
+        break;
+      case 'getFiles':
+        result = handleGetFiles(e.parameter.folderId);
+        break;
+      case 'getFileContent':
+        result = handleGetFileContent(e.parameter.fileId);
+        break;
+      case 'getTemporaryUrl':
+        result = handleGetTemporaryUrl(e.parameter.fileId);
+        break;
+      case 'revokeTemporaryAccess':
+        result = handleRevokeTemporaryAccess(e.parameter.fileId);
+        break;
+      case 'ensureFileAccess':
+        result = handleEnsureFileAccess(e.parameter.fileId);
+        break;
+      default:
+        result = { error: 'Invalid action' };
+    }
+    output.setContent(JSON.stringify(result));
+    return output;
+  } catch (error) {
+    return ContentService.createTextOutput(JSON.stringify({ error: error.toString() }))
+      .setMimeType(ContentService.MimeType.JSON);
+  }
+}
+
+//Handle the getFolders action
+function handleGetFolders(folderId) {
+  if (!folderId) throw new Error('Folder ID is required');
+  const folder = DriveApp.getFolderById(folderId);
+  if (!folder) throw new Error('Folder not found');
+  const subfolders = folder.getFolders();
+  const foldersArray = [];
+  const isRootFolder = (folderId === ROOT_FOLDER_ID);
+  while (subfolders.hasNext()) {
+    const subfolder = subfolders.next();
+    foldersArray.push({
+      id: subfolder.getId(),
+      name: subfolder.getName(),
+      isSubject: !isRootFolder
+    });
+  }
+  return { folders: foldersArray };
+}
+
+//Handle the getFiles action
+function handleGetFiles(folderId) {
+  if (!folderId) throw new Error('Folder ID is required');
+  const folder = DriveApp.getFolderById(folderId);
+  if (!folder) throw new Error('Folder not found');
+  const files = folder.getFiles();
+  const filesArray = [];
+  while (files.hasNext()) {
+    const file = files.next();
+    const fileName = file.getName();
+    const fileInfo = parseFileName(fileName);
+    const mimeType = file.getMimeType();
+    let fileType = mimeType === "application/pdf" ? "PDF" : (mimeType.includes("document") ? "DOC" : "Unknown");
+    let pages = "Unknown";
+    if (fileType === "DOC") {
+      try {
+        const doc = Docs.Documents.get(file.getId());
+        pages = doc.body.content.length > 1 ? (doc.body.content.length - 1).toString() : "1"; // Rough page estimate
+      } catch (e) {
+        Logger.log(`Error getting page count for ${file.getId()}: ${e}`);
+      }
+    }
+    const sizeBytes = file.getSize();
+    let sizeFormatted;
+    if (sizeBytes < 1024) {
+      sizeFormatted = `${sizeBytes} Bytes`; // Below 1 KB
+    } else if (sizeBytes < 1024 * 1024) {
+      sizeFormatted = `${(sizeBytes / 1024).toFixed(2)} KB`; // Below 1 MB
+    } else if (sizeBytes < 1024 * 1024 * 1024) {
+      sizeFormatted = `${(sizeBytes / (1024 * 1024)).toFixed(2)} MB`; // Below 1 GB
+    } else {
+      sizeFormatted = `${(sizeBytes / (1024 * 1024 * 1024)).toFixed(2)} GB`; // 1 GB or more
+    }
+
+    filesArray.push({
+      id: file.getId(),
+      name: fileName,
+      mimeType: mimeType,
+      size: sizeFormatted, // Formatted size with unit
+      pages: pages, // Page count or "Unknown" for PDFs
+      fileType: fileType, // PDF or DOC
+      rollNumber: fileInfo.rollNumber,
+      experimentNumber: fileInfo.experiment, // Extracted experiment number
+      subject: fileInfo.subject,
+      fileId: fileInfo.fileId,
+      lastUpdated: file.getLastUpdated().getTime() // Timestamp in milliseconds
+    });
+  }
+  return { files: filesArray };
+}
+
+//Handle the getFileContent action
+function handleGetFileContent(fileId) {
+  if (!fileId) throw new Error('File ID is required');
+  const file = DriveApp.getFileById(fileId);
+  if (!file) throw new Error('File not found');
+  const blob = file.getBlob();
+  const base64Content = Utilities.base64Encode(blob.getBytes());
+  return { content: base64Content };
+}
+
+//Handle the getTemporaryUrl action
+function handleGetTemporaryUrl(fileId) {
+  if (!fileId) throw new Error('File ID is required');
+  const file = DriveApp.getFileById(fileId);
+  if (!file) throw new Error('File not found');
+  file.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW);
+  const url = file.getDownloadUrl();
+  const expires = new Date(new Date().getTime() + 3600000); // 1 hour expiration
+  PropertiesService.getScriptProperties().setProperty(fileId, JSON.stringify({ url, expires }));
+  Logger.log(`Temporary URL generated for file ${fileId}: ${url}`);
+  return { url, expires: expires.getTime() };
+}
+
+//Handle the revokeTemporaryAccess action
+function handleRevokeTemporaryAccess(fileId) {
+  if (!fileId) throw new Error('File ID is required');
+  const file = DriveApp.getFileById(fileId);
+  if (!file) throw new Error('File not found');
+  file.setSharing(DriveApp.Access.PRIVATE, DriveApp.Permission.NONE);
+  PropertiesService.getScriptProperties().deleteProperty(fileId);
+  return { success: true };
+}
+
+//Handle the ensureFileAccess action
+function handleEnsureFileAccess(fileId) {
+  if (!fileId) throw new Error('File ID is required');
+  const file = DriveApp.getFileById(fileId);
+  if (!file) throw new Error('File not found');
+  file.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW);
+  Logger.log(`Ensured access for file ${fileId} by setting sharing to ANYONE_WITH_LINK`);
+  return { success: true };
+}
+
+/**
+ * Parse a filename to extract information
+ * Updated to match example: 34_EXP6_IAI [S3578].docx
+ */
+function parseFileName(fileName) {
+  const fileInfo = { rollNumber: '', experiment: '', subject: '', fileId: '' };
+  try {
+    const pattern = /^(\d+)_([A-Za-z0-9_]+)\s*\[([A-Za-z0-9]+)\].*$/;
+    const matches = fileName.match(pattern);
+    if (matches && matches.length >= 4) {
+      fileInfo.rollNumber = matches[1]; // "34"
+      fileInfo.experiment = matches[2]; // "EXP6_IAI"
+      fileInfo.fileId = matches[3]; // "S3578"
+    }
+  } catch (e) {
+    Logger.log('Error parsing filename: ' + e);
+  }
+  return fileInfo;
+}
+
+//Clean up expired temporary URLs
+function cleanupExpiredUrls() {
+  const properties = PropertiesService.getScriptProperties().getProperties();
+  const now = new Date().getTime();
+  for (const [fileId, data] of Object.entries(properties)) {
+    const { expires } = JSON.parse(data);
+    if (now > expires) {
+      try {
+        const file = DriveApp.getFileById(fileId);
+        file.setSharing(DriveApp.Access.PRIVATE, DriveApp.Permission.NONE);
+        PropertiesService.getScriptProperties().deleteProperty(fileId);
+        Logger.log(`Revoked temporary access for file ${fileId}`);
+      } catch (e) {
+        Logger.log('Error cleaning up file ' + fileId + ': ' + e);
+      }
+    }
+  }
+}
+
+
+// =================================================================
+// ===== NEW CODE FOR DELETING DUPLICATE FILES =====================
+// =================================================================
+function deleteDuplicateFiles() {
+  Logger.log('Starting duplicate file check...');
+  try {
+    const rootFolder = DriveApp.getFolderById(ROOT_FOLDER_ID);
+    const allFilesMap = {};
+
+    // 1. Recursively collect all files and their creation dates
+    collectAllFiles(rootFolder, allFilesMap);
+
+    // 2. Iterate through the collected files to find and process duplicates
+    for (const name in allFilesMap) {
+      const fileGroup = allFilesMap[name];
+
+      // If more than one file has the same name, they are duplicates
+      if (fileGroup.length > 1) {
+        Logger.log(`Found ${fileGroup.length} files named "${name}". Processing...`);
+
+        // Sort files by creation date, from oldest to newest
+        fileGroup.sort((a, b) => a.createdDate.getTime() - b.createdDate.getTime());
+
+        // Keep the newest file (the last one in the sorted array) and trash the rest
+        const filesToTrash = fileGroup.slice(0, -1); // All except the last element
+
+        for (const fileInfo of filesToTrash) {
+          try {
+            const fileToTrash = DriveApp.getFileById(fileInfo.id);
+            // Move the older file to the trash
+            fileToTrash.setTrashed(true);
+            Logger.log(`TRASHED older duplicate: "${name}" (ID: ${fileInfo.id}, Created: ${fileInfo.createdDate})`);
+          } catch (e) {
+            Logger.log(`Could not trash file ID ${fileInfo.id}. It may have been deleted already. Error: ${e.toString()}`);
+          }
+        }
+      }
+    }
+    Logger.log('Duplicate file check finished.');
+  } catch (e) {
+    Logger.log(`An error occurred during the duplicate deletion process: ${e.toString()}`);
+  }
+}
+
+/**
+ * Helper function to recursively traverse folders and collect file data.
+ * @param {GoogleAppsScript.Drive.Folder} folder The folder to search in.
+ * @param {Object} filesMap An object to store the collected file data, grouped by name.
+ */
+function collectAllFiles(folder, filesMap) {
+  const files = folder.getFiles();
+  while (files.hasNext()) {
+    const file = files.next();
+    try {
+      const name = file.getName();
+      if (!filesMap[name]) {
+        filesMap[name] = [];
+      }
+      filesMap[name].push({
+        id: file.getId(),
+        createdDate: file.getDateCreated() // Use creation date to determine which was "uploaded first"
+      });
+    } catch (e) {
+      Logger.log(`Could not access a file in folder "${folder.getName()}". Error: ${e.toString()}`);
+    }
+  }
+
+  // Recurse into subfolders
+  const subFolders = folder.getFolders();
+  while (subFolders.hasNext()) {
+    collectAllFiles(subFolders.next(), filesMap);
+  }
+}
+
+/**
+ * Sets up a time-driven trigger to run the 'deleteDuplicateFiles' function daily
+ * around 11:59 PM. Note that Google Apps Script triggers are not guaranteed to run
+ * at the exact minute, but 'nearMinute(59)' will attempt to run as close as possible
+ * to 11:59 PM. YOU MUST RUN THIS FUNCTION MANUALLY ONCE to activate the new schedule.
+ */
+function createDuplicateFileDeletionTrigger() {
+  // Delete any existing triggers for this function to prevent multiple triggers.
+  const allTriggers = ScriptApp.getProjectTriggers();
+  for (const trigger of allTriggers) {
+    if (trigger.getHandlerFunction() === 'deleteDuplicateFiles') {
+      ScriptApp.deleteTrigger(trigger);
+      Logger.log('Deleted existing trigger for deleteDuplicateFiles.');
+    }
+  }
+
+  // Create a new trigger that runs daily around 11:59 PM.
+  ScriptApp.newTrigger('deleteDuplicateFiles')
+    .timeBased()
+    .everyDays(1) // This specifies to run once per day
+    .atHour(23)   // This sets the hour to 23 = 11:00 PM
+    .nearMinute(59) // Attempts to run as close as possible to XX:59 within the hour
+    .create();
+
+  Logger.log('Successfully created a new trigger to run "deleteDuplicateFiles" every day around 11:59 PM.');
+}
