@@ -16,21 +16,49 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.4.120/pdf.min.js"></script>
     <link rel="stylesheet" href="style.css">
     <script src="https://unpkg.com/@dotlottie/player-component@2.7.12/dist/dotlottie-player.mjs" type="module"></script>
+    <!-- Preload commonly used SVG icons to improve perceived performance -->
+    <link rel="preload" as="image" href="./Folder_SVG.svg" />
+    <link rel="preload" as="image" href="./PDF_icon.svg" />
+    <link rel="preload" as="image" href="./MsWord_SVG.svg" />
+    <link rel="preload" as="image" href="./excel_icon.svg" />
+    <link rel="preload" as="image" href="./powerpoint_icon.svg" />
+    <link rel="preload" as="image" href="./image_icon.svg" />
+    <link rel="preload" as="image" href="./archives_icon.svg" />
+    <link rel="preload" as="image" href="./url_icon.svg" />
+    <link rel="preload" as="image" href="./txt_icon.svg" />
+    <link rel="preload" as="image" href="./gdocs_icons.svg" />
+    <link rel="preload" as="image" href="./gslides_icon.svg" />
+    <link rel="preload" as="image" href="./gsheets_icon.svg" />
+    <link rel="preload" as="image" href="./youtube_icon.svg" />
+    <link rel="preload" as="image" href="./github_icon.svg" />
+    <link rel="preload" as="image" href="./drive_icon.svg" />
+    <link rel="preload" as="image" href="./GoogleDoc_SVG.svg" />
     <script>
         (function () {
-            const pdfIconUrl = "./PDF_icon.svg";
+            const iconUrls = [
+                "./PDF_icon.svg",
+                "./MsWord_SVG.svg",
+                "./excel_icon.svg",
+                "./powerpoint_icon.svg",
+                "./image_icon.svg",
+                "./archives_icon.svg",
+                "./url_icon.svg",
+                "./txt_icon.svg",
+                "./gdocs_icons.svg",
+                "./gslides_icon.svg",
+                "./gsheets_icon.svg",
+                "./youtube_icon.svg",
+                "./github_icon.svg",
+                "./drive_icon.svg",
+                "./GoogleDoc_SVG.svg",
+            ];
 
-            fetch(pdfIconUrl)
-                .then(response => {
-                    if (!response.ok) throw new Error("Network response was not ok");
-                    return response.blob();
-                })
-                .then(() => {
-                    console.log("PDF icon preloaded and cached");
-                })
-                .catch(error => {
-                    console.warn("Failed to preload PDF icon:", error);
-                });
+            // Warm cache using Image objects (leverages standard image cache)
+            iconUrls.forEach((url) => {
+                const img = new Image();
+                img.decoding = "async";
+                img.src = url;
+            });
         })();
     </script>
 </head>

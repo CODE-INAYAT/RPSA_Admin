@@ -64,6 +64,191 @@ const progressAnimation = {
   stageTimers: [],
 };
 
+// ---- File type helpers ----
+function getFileExtension(name) {
+  return (name || "").split(".").pop().toLowerCase();
+}
+
+function isImageExt(ext) {
+  return ["png", "jpg", "jpeg", "gif", "webp", "bmp", "svg"].includes(ext);
+}
+
+function isArchiveExt(ext) {
+  return ["zip", "rar", "7z", "tar", "gz", "bz2", "xz"].includes(ext);
+}
+
+function isWordExt(ext) {
+  return ["doc", "docx"].includes(ext);
+}
+
+function isExcelExt(ext) {
+  return ["xls", "xlsx"].includes(ext);
+}
+
+function isPptExt(ext) {
+  return ["ppt", "pptx"].includes(ext);
+}
+
+function getIconHtmlByExt(ext, hasGoogleDocId) {
+  const sizeInPixel = window.innerWidth < 768 ? 35 : 40;
+  const img = (src, alt) =>
+    `<img style="height: ${sizeInPixel}px; width: ${sizeInPixel}px;" src="${src}" alt="${alt}" />`;
+  if (hasGoogleDocId && isWordExt(ext))
+    return img("./GoogleDoc_SVG.svg", "Google Doc Icon");
+  // .url is a URL link file; .txt is a normal text file
+  if (ext === "url") return img("./url_icon.svg", "URL Icon");
+  if (ext === "txt") return img("./txt_icon.svg", "Text File Icon");
+  if (ext === "pdf") return img("./PDF_icon.svg", "PDF Icon");
+  if (isWordExt(ext)) return img("./MsWord_SVG.svg", "Word Icon");
+  if (isExcelExt(ext)) return img("./excel_icon.svg", "Excel Icon");
+  if (isPptExt(ext)) return img("./powerpoint_icon.svg", "PowerPoint Icon");
+  if (isImageExt(ext)) return img("./image_icon.svg", "Image Icon");
+  if (isArchiveExt(ext)) return img("./archives_icon.svg", "Archive Icon");
+  // Fallbacks: show GoogleDoc icon if we know it's a converted Google file; else default to PDF icon
+  if (hasGoogleDocId) return img("./GoogleDoc_SVG.svg", "Google Doc Icon");
+  return img("./PDF_icon.svg", "File Icon");
+}
+
+// ---- URL/link helpers ----
+// Base64URL decode helper (UTF-8 safe)
+function base64UrlDecode(b64url) {
+  try {
+    const padLen = (4 - (b64url.length % 4)) % 4;
+    const b64 =
+      b64url.replace(/-/g, "+").replace(/_/g, "/") + "=".repeat(padLen);
+    const bin = atob(b64);
+    try {
+      return decodeURIComponent(
+        bin
+          .split("")
+          .map((c) => "%" + c.charCodeAt(0).toString(16).padStart(2, "0"))
+          .join("")
+      );
+    } catch {
+      return bin;
+    }
+  } catch {
+    return "";
+  }
+}
+
+// Extract a leading URL marker from filename, if any.
+// Pattern: !!u:<base64url>!!<rest-of-filename>
+function extractUrlFromFilename(name) {
+  const m = (name || "").match(/^!!u:([A-Za-z0-9_-]+)!!(.*)$/);
+  if (!m) return { strippedName: name, meta: null };
+  const encoded = m[1];
+  const strippedName = m[2];
+  const url = base64UrlDecode(encoded);
+  const meta = classifyUrl(url);
+  return { strippedName, meta };
+}
+
+function classifyUrl(rawText) {
+  if (!rawText) return { provider: "other", originalUrl: "" };
+  const text = String(rawText).trim();
+  const firstUrlMatch = text.match(/https?:\/\/[^\s]+/i);
+  const url = firstUrlMatch ? firstUrlMatch[0] : text;
+
+  // Google Docs/Slides/Sheets
+  const docMatch = url.match(
+    /https?:\/\/docs\.google\.com\/document\/d\/([\w-]+)/i
+  );
+  if (docMatch)
+    return {
+      provider: "gdoc",
+      id: docMatch[1],
+      originalUrl: `https://docs.google.com/document/d/${docMatch[1]}`,
+    };
+  const slideMatch = url.match(
+    /https?:\/\/docs\.google\.com\/presentation\/d\/([\w-]+)/i
+  );
+  if (slideMatch)
+    return {
+      provider: "gslide",
+      id: slideMatch[1],
+      originalUrl: `https://docs.google.com/presentation/d/${slideMatch[1]}`,
+    };
+  const sheetMatch = url.match(
+    /https?:\/\/docs\.google\.com\/spreadsheets\/d\/([\w-]+)/i
+  );
+  if (sheetMatch)
+    return {
+      provider: "gsheet",
+      id: sheetMatch[1],
+      originalUrl: `https://docs.google.com/spreadsheets/d/${sheetMatch[1]}`,
+    };
+
+  // Google Drive links (files, folders, uc/usercontent)
+  const driveFileMatch = url.match(
+    /https?:\/\/drive\.google\.com\/(?:file\/d\/|open\?id=|uc\?id=)([\w-]+)/i
+  );
+  if (driveFileMatch)
+    return { provider: "drive", id: driveFileMatch[1], originalUrl: url };
+  const driveFolderMatch = url.match(
+    /https?:\/\/drive\.google\.com\/drive\/(?:u\/\d+\/)?folders\/([\w-]+)/i
+  );
+  if (driveFolderMatch)
+    return { provider: "drive", id: driveFolderMatch[1], originalUrl: url };
+  const driveUsercontentMatch = url.match(
+    /https?:\/\/drive\.usercontent\.google\.com\/download\?id=([\w-]+)/i
+  );
+  if (driveUsercontentMatch)
+    return {
+      provider: "drive",
+      id: driveUsercontentMatch[1],
+      originalUrl: url,
+    };
+  const docsUcMatch = url.match(
+    /https?:\/\/docs\.google\.com\/uc\?(?:export=[^&]+&)?id=([\w-]+)/i
+  );
+  if (docsUcMatch)
+    return { provider: "drive", id: docsUcMatch[1], originalUrl: url };
+
+  // YouTube
+  const ytMatch = url.match(
+    /(?:https?:\/\/)?(?:www\.)?(?:youtube\.com\/watch\?v=|youtu\.be\/)([\w-]{11})/i
+  );
+  if (ytMatch) return { provider: "youtube", id: ytMatch[1], originalUrl: url };
+
+  // GitHub
+  if (/https?:\/\/(?:www\.)?github\.com\//i.test(url))
+    return { provider: "github", originalUrl: url };
+
+  // Other
+  return { provider: "other", originalUrl: url };
+}
+
+function getLinkProviderIcon(provider) {
+  const sizeInPixel = window.innerWidth < 768 ? 35 : 40;
+  const img = (src, alt) =>
+    `<img style="height: ${sizeInPixel}px; width: ${sizeInPixel}px;" src="${src}" alt="${alt}" />`;
+  switch (provider) {
+    case "gdoc":
+      return img("./gdocs_icons.svg", "Google Docs Icon");
+    case "gslide":
+      return img("./gslides_icon.svg", "Google Slides Icon");
+    case "gsheet":
+      return img("./gsheets_icon.svg", "Google Sheets Icon");
+    case "youtube":
+      return img("./youtube_icon.svg", "YouTube Icon");
+    case "github":
+      return img("./github_icon.svg", "GitHub Icon");
+    case "drive":
+      return img("./drive_icon.svg", "Drive Icon");
+    default:
+      return img("./url_icon.svg", "URL Icon");
+  }
+}
+
+const EXTERNAL_LINK_SVG =
+  '<svg class="w-5 h-5" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" data-iconid="external-link" data-svgname="External link">\
+<line x1="10.8492" y1="13.0606" x2="19.435" y2="4.47485" stroke="#333333" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"></line>\
+<path d="M19.7886 4.12134L20.1421 8.01042" stroke="#333333" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"></path>\
+<path d="M19.7886 4.12134L15.8995 3.76778" stroke="#333333" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"></path>\
+<path d="M18 13.1465V17.6465C18 19.3033 16.6569 20.6465 15 20.6465H6C4.34315 20.6465 3 19.3033 3 17.6465V8.64648C3 6.98963 4.34315 5.64648 6 5.64648H10.5" stroke="#333333" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"></path>\
+</svg>';
+
 function startProgressAnimation(iframeElement, loadingContainer, onCompletion) {
   // 1. Clear any leftover animations
   clearInterval(progressAnimation.textInterval);
@@ -276,7 +461,8 @@ function checkPin() {
   if (enteredPin === expectedPin) {
     pinContainer.classList.add("hidden");
     downloadButton.classList.remove("hidden");
-    printButton.classList.remove("hidden");
+    // Keep print hidden per requirements
+    printButton.classList.add("hidden");
     docPreviewIframe.classList.add("hidden");
 
     const isSmallScreen = window.innerWidth < 768;
@@ -314,12 +500,23 @@ function checkPin() {
         };
         startProgressAnimation(docPreviewIframe, previewLoading, onPreviewLoad);
       } else {
-        printButton.classList.add("hidden");
-        previewError.classList.remove("hidden");
-        errorMessage.textContent =
-          "Please wait while your file is being downloaded.";
-        setTimeout(() => downloadButton.click(), 100);
+        // Fallback to Drive viewer, no auto-download
+        docPreviewIframe.src = `https://drive.google.com/file/d/${currentFileId}/preview`;
+        fileCache[currentFileId] = {
+          blob: docPreviewIframe.src,
+          mimeType:
+            "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+        };
+        startProgressAnimation(docPreviewIframe, previewLoading, onPreviewLoad);
       }
+    } else {
+      // Fallback for other types: attempt Drive preview
+      docPreviewIframe.src = `https://drive.google.com/file/d/${currentFileId}/preview`;
+      fileCache[currentFileId] = {
+        blob: docPreviewIframe.src,
+        mimeType: "application/octet-stream",
+      };
+      startProgressAnimation(docPreviewIframe, previewLoading, onPreviewLoad);
     }
 
     pinInputs.forEach((input) =>
@@ -362,8 +559,13 @@ function resetPreviewModal() {
   currentFileBlob = null;
   pinContainer.classList.add("hidden");
   incorrectPin.classList.add("hidden");
+  // Restore modal buttons state
   downloadButton.classList.remove("hidden");
-  printButton.classList.remove("hidden");
+  printButton.classList.add("hidden");
+  const extBtn = document.getElementById("external-link-btn");
+  if (extBtn && extBtn.parentNode) {
+    extBtn.parentNode.removeChild(extBtn);
+  }
   resetPinInputs();
   expectedPin = null;
   currentGoogleDocId = null; // Reset Google Doc ID
@@ -1098,27 +1300,27 @@ async function loadFiles(folderId) {
     emptyFolderMessage.classList.remove("hidden");
   } else {
     emptyFolderMessage.classList.add("hidden");
+    await preloadFiles(files);
     renderFiles(files);
-    preloadFiles(files);
   }
 }
 
 // Preload files into fileCache
 async function preloadFiles(files) {
+  // Speed-first: avoid fetching file contents. For URL files, rely on linkMeta parsed from filename.
   for (const file of files) {
-    if (!fileCache[file.id]) {
-      const fileExtension = file.name.split(".").pop().toLowerCase();
-      if (["pdf", "doc", "docx"].includes(fileExtension)) {
-        try {
-          const content = await fetchFileContent(file.id);
-          if (content) {
-            const blob = `data:${file.mimeType};base64,${content}`;
-            fileCache[file.id] = { blob, mimeType: file.mimeType };
-            console.log(`${file.name} cached`);
-          }
-        } catch (error) {
-          console.error(`Error preloading file ${file.id}:`, error);
-        }
+    if (fileCache[file.id]) continue;
+    const ext = (file.extension || file.name.split(".").pop()).toLowerCase();
+    if (
+      (ext === "txt" && file.name.toLowerCase().endsWith(".url.txt")) ||
+      ext === "url"
+    ) {
+      if (file.linkMeta) {
+        fileCache[file.id] = {
+          blob: null,
+          mimeType: "text/plain",
+          linkMeta: file.linkMeta,
+        };
       }
     }
   }
@@ -1142,8 +1344,8 @@ async function updateFiles(folderId) {
       contentList.innerHTML = "";
     } else {
       emptyFolderMessage.classList.add("hidden");
+      await preloadFiles(files);
       renderFiles(files);
-      preloadFiles(files);
     }
   }
 }
@@ -1294,8 +1496,7 @@ function renderFiles(files) {
   }
 
   files.forEach((file) => {
-    const fileExtension =
-      file.extension || file.name.split(".").pop().toLowerCase();
+    const fileExtension = file.extension || getFileExtension(file.name);
     const uploaderName = file.uploaderName || "Unknown";
     const year = file.year || "Unknown";
     // Format examTypeAndSemester, keeping Resources_* intact
@@ -1306,9 +1507,16 @@ function renderFiles(files) {
       ? formatDateTime(file.lastUpdated)
       : "Unknown";
     const size = file.size || "Unknown";
-    const fileType = file.googleDocId
-      ? "G DOC"
-      : (file.extension || "Unknown").toUpperCase();
+    const isUrlFileByName =
+      (file.extension || "").toLowerCase() === "txt" &&
+      file.name.toLowerCase().endsWith(".url.txt");
+    const isUrlExt = (file.extension || "").toLowerCase() === "url";
+    const fileType =
+      isUrlFileByName || isUrlExt
+        ? "URL"
+        : file.googleDocId
+        ? "G DOC"
+        : (file.extension || "Unknown").toUpperCase();
 
     // Generate unique gradient for this user's avatar background
     const userGradient = generateGradient(uploaderName);
@@ -1331,17 +1539,31 @@ function renderFiles(files) {
     const isMobile = window.innerWidth < 768;
     const sizeInPixel = isMobile ? 35 : 40;
 
-    const pdfIcon = `<img style="height: ${sizeInPixel}px; width: ${sizeInPixel}px;" src="./PDF_icon.svg" alt="PDF Icon" />`;
-    const docIcon = `<img src="./MsWord_SVG.svg" class="w-7 h-7 shrink-0 ${
-      window.innerWidth < 768 ? "md:w-7 md:h-7" : ""
-    }" alt="Document Icon" />`;
-    const googleDocIcon = `<img src="./GoogleDoc_SVG.svg" class="w-7 h-7 shrink-0 ${
-      window.innerWidth < 768 ? "md:w-7 md:h-7" : ""
-    }" alt="Document Icon" />`;
-
     const hasGoogleDocId = !!file.googleDocId;
-    const icon =
-      fileType === "PDF" ? pdfIcon : hasGoogleDocId ? googleDocIcon : docIcon;
+    let icon = getIconHtmlByExt(fileExtension, hasGoogleDocId);
+    let listActionHtml = null;
+    let listActionOnClick = null;
+    const isUrlFile =
+      (fileExtension === "txt" &&
+        file.name.toLowerCase().endsWith(".url.txt")) ||
+      fileExtension === "url";
+    if (isUrlFile) {
+      const meta = file.linkMeta || fileCache[file.id]?.linkMeta;
+      if (meta) {
+        icon = getLinkProviderIcon(meta.provider);
+        if (
+          ["gdoc", "gslide", "gsheet", "youtube", "github", "drive"].includes(
+            meta.provider
+          )
+        ) {
+          listActionHtml = EXTERNAL_LINK_SVG;
+          listActionOnClick = () => window.open(meta.originalUrl, "_blank");
+        }
+      } else {
+        // Fallback icon for URL files while metadata loads
+        icon = getLinkProviderIcon("other");
+      }
+    }
     const displaySize = hasGoogleDocId ? "Uploaded Through Link" : size;
 
     const chatBubble = document.createElement("li");
@@ -1385,7 +1607,7 @@ function renderFiles(files) {
                 <div class="flex items-start bg-gray-50 dark:bg-gray-700 rounded-xl p-2 h-auto w-full md:w-auto" style="border-radius: 15px;">
                   <div class="me-2 flex-1">
                     <span class="flex items-center gap-2 text-sm font-medium text-gray-900 dark:text-white pb-2 flex-wrap">
-                      ${icon}
+                      <span class="file-icon">${icon}</span>
                       <span class="file-exam-semester break-all">${examTypeAndSemester}</span>
                     </span>
                     <span class="flex text-xs font-normal text-gray-500 dark:text-gray-400 gap-2 flex-wrap">
@@ -1399,23 +1621,48 @@ function renderFiles(files) {
                 </div>
               </div>
             </div>
-            <button class="absolute top-2 right-2 hidden group-hover:block text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-200" onclick="downloadFileFromGDrive('${
+            <button class="absolute top-2 right-2 hidden group-hover:block text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-200" id="btn-${
               file.id
-            }', '${file.course}_${file.examType}_${file.semester}(${
-      file.year
-    }).${file.extension}')">
-              <svg class="w-5 h-5" aria-hidden="true" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                <path stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 15v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2M12 4v12m0 0-4-4m4 4 4-4"/>
-              </svg>
+            }">
+              ${
+                listActionHtml ||
+                '<svg class="w-5 h-5" aria-hidden="true" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><path stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 15v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2M12 4v12m0 0-4-4m4 4 4-4"/></svg>'
+              }
             </button>
           </div>
         </div>
       </div>`;
 
+    // Force-set URL icons post-render to avoid any fallbacks showing (e.g., PDF)
+    if (isUrlFile) {
+      const metaNow = file.linkMeta || fileCache[file.id]?.linkMeta;
+      const iconHtml = getLinkProviderIcon(
+        metaNow ? metaNow.provider : "other"
+      );
+      const iconSpan = chatBubble.querySelector(".file-icon");
+      if (iconSpan) iconSpan.innerHTML = iconHtml;
+    }
+
     chatBubble.querySelector("a").addEventListener("click", (e) => {
       e.preventDefault();
       openFilePreview(file);
     });
+    const topBtn = chatBubble.querySelector(`#btn-${file.id}`);
+    if (listActionOnClick) {
+      topBtn.addEventListener("click", (e) => {
+        e.stopPropagation();
+        listActionOnClick();
+      });
+    } else {
+      topBtn.addEventListener("click", (e) => {
+        e.stopPropagation();
+        downloadFileFromGDrive(
+          file.id,
+          `${file.course}_${file.examType}_${file.semester}(${file.year}).${file.extension}`
+        );
+      });
+    }
+
     chatBubble.addEventListener("click", (e) => {
       if (!e.target.closest("a")) {
         openFilePreview(file);
@@ -1441,8 +1688,7 @@ async function openFilePreview(file) {
   try {
     // 1.Initial UI and Data Setup
     currentFileId = file.id;
-    const fileExtension =
-      file.extension || file.name.split(".").pop().toLowerCase();
+    const fileExtension = file.extension || getFileExtension(file.name);
     const displayName = file.examType.startsWith("Resources_")
       ? `${file.course}_${file.examType}_${file.semester}(${file.year}).${fileExtension}`
       : `${file.course}_${file.examType}_${file.semester}(${file.year}).${fileExtension}`;
@@ -1457,6 +1703,14 @@ async function openFilePreview(file) {
     previewModal.classList.remove("hidden");
     document.body.classList.add("no-scroll");
 
+    // Disable print everywhere per requirement
+    printButton.classList.add("hidden");
+    // Ensure any previous external-link button is removed and download button is visible
+    const prevExtBtn = document.getElementById("external-link-btn");
+    if (prevExtBtn && prevExtBtn.parentNode) {
+      prevExtBtn.parentNode.removeChild(prevExtBtn);
+    }
+    downloadButton.classList.remove("hidden");
     // Hide all content containers initially
     pdfContainer.classList.add("hidden");
     docxContainer.classList.add("hidden");
@@ -1473,8 +1727,7 @@ async function openFilePreview(file) {
     if (fileExtension === "pdf") {
       iframeSrc = `https://drive.google.com/file/d/${file.id}/preview`;
       mimeType = "application/pdf";
-      printButton.classList.add("hidden"); // PDFs are not directly printable from preview
-    } else if (fileExtension === "doc" || fileExtension === "docx") {
+    } else if (isWordExt(fileExtension)) {
       if (hasGoogleDocId) {
         iframeSrc = isSmallScreen
           ? `https://drive.google.com/file/d/${
@@ -1487,18 +1740,158 @@ async function openFilePreview(file) {
           fileExtension === "doc"
             ? "application/msword"
             : "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
-        printButton.classList.remove("hidden");
       } else {
-        // This is a special case: a DOCX without a preview ID. Force download.
-        previewError.classList.remove("hidden");
-        errorMessage.textContent =
-          "Please wait while your file is being downloaded.";
-        setTimeout(() => downloadButton.click(), 100);
-        return; // Stop further execution
+        // Fallback to Drive viewer for Office files without Google IDs (no auto-download)
+        iframeSrc = `https://drive.google.com/file/d/${file.id}/preview`;
+        mimeType =
+          fileExtension === "doc"
+            ? "application/msword"
+            : "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
       }
+    } else if (isPptExt(fileExtension)) {
+      // Try Google Slides preview if it's a converted Google file
+      if (hasGoogleDocId) {
+        iframeSrc = `https://docs.google.com/presentation/d/${
+          file.googleDocId || file.id
+        }/preview`;
+      } else {
+        // Drive preview often works for Office files as well
+        iframeSrc = `https://drive.google.com/file/d/${file.id}/preview`;
+      }
+      mimeType =
+        fileExtension === "ppt"
+          ? "application/vnd.ms-powerpoint"
+          : "application/vnd.openxmlformats-officedocument.presentationml.presentation";
+    } else if (isExcelExt(fileExtension)) {
+      if (hasGoogleDocId) {
+        iframeSrc = `https://docs.google.com/spreadsheets/d/${
+          file.googleDocId || file.id
+        }/preview`;
+      } else {
+        iframeSrc = `https://drive.google.com/file/d/${file.id}/preview`;
+      }
+      mimeType =
+        fileExtension === "xls"
+          ? "application/vnd.ms-excel"
+          : "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
+    } else if (isImageExt(fileExtension)) {
+      // Use Drive preview for images to avoid usercontent iframe blocking or auto-downloads
+      iframeSrc = `https://drive.google.com/file/d/${file.id}/preview`;
+      mimeType = `image/${fileExtension === "jpg" ? "jpeg" : fileExtension}`;
+    } else if (
+      fileExtension === "url" ||
+      (fileExtension === "txt" && file.name.toLowerCase().endsWith(".url.txt"))
+    ) {
+      // Load url text and special previews
+      try {
+        previewLoading.classList.remove("hidden");
+        // For URL files, override the preview filename to a clean natural name with .url.txt
+        const naturalBase = `${file.course}_${file.examType}_${file.semester}(${file.year})`;
+        previewFilename.textContent = `${naturalBase}.url.txt`;
+        const meta = file.linkMeta || fileCache[file.id]?.linkMeta || null;
+        let finalMeta = meta;
+        if (!finalMeta) {
+          // Rare fallback for legacy .url.txt without marker
+          let text = null;
+          try {
+            const base64 = await fetchFileContent(file.id);
+            text = atob(base64 || "");
+          } catch (_) {
+            text = "";
+          }
+          finalMeta = classifyUrl(text);
+        }
+        const setExternalLinkBtn = () => {
+          // Always show both External Link and Download buttons for URL previews
+          downloadButton.classList.remove("hidden");
+          // Use the print button position for external link button
+          const parent = printButton.parentNode;
+          // Avoid inserting duplicate button if it somehow exists
+          const existing = document.getElementById("external-link-btn");
+          if (existing && existing.parentNode)
+            existing.parentNode.removeChild(existing);
+          const extBtn = document.createElement("button");
+          extBtn.id = "external-link-btn";
+          // Use the same classes as the download button so it looks like an action button
+          extBtn.className = downloadButton.className;
+          // Add a little spacing from the download button
+          try {
+            extBtn.classList.add("ml-2");
+          } catch (_) {
+            /* ignore */
+          }
+          extBtn.innerHTML = EXTERNAL_LINK_SVG;
+          // Ensure original print button remains hidden
+          printButton.classList.add("hidden");
+          if (downloadButton.nextSibling) {
+            parent.insertBefore(extBtn, downloadButton.nextSibling);
+          } else {
+            parent.appendChild(extBtn);
+          }
+          // Make sure it's not hidden by any inherited class
+          extBtn.classList.remove("hidden");
+          extBtn.type = "button";
+          extBtn.addEventListener("click", () =>
+            window.open(finalMeta.originalUrl, "_blank")
+          );
+        };
+
+        if (finalMeta.provider === "gdoc") {
+          setExternalLinkBtn();
+          iframeSrc = `https://docs.google.com/document/d/${finalMeta.id}/preview?tab=t.0`;
+        } else if (finalMeta.provider === "gslide") {
+          setExternalLinkBtn();
+          iframeSrc = `https://docs.google.com/presentation/d/${finalMeta.id}/preview`;
+        } else if (finalMeta.provider === "gsheet") {
+          setExternalLinkBtn();
+          iframeSrc = `https://docs.google.com/spreadsheets/d/${finalMeta.id}/preview`;
+        } else if (finalMeta.provider === "youtube") {
+          setExternalLinkBtn();
+          iframeSrc = `https://www.youtube.com/embed/${finalMeta.id}`;
+        } else if (finalMeta.provider === "drive") {
+          setExternalLinkBtn();
+          iframeSrc = `https://drive.google.com/file/d/${finalMeta.id}/preview`;
+        } else if (finalMeta.provider === "github") {
+          setExternalLinkBtn();
+          previewLoading.classList.add("hidden");
+          docxContainer.innerHTML = `
+            <div class="max-w-3xl mx-auto bg-gray-50 border border-gray-200 rounded-lg p-4 text-left" style="border-radius: 12px;">
+              <p class="text-sm text-gray-700">Link:</p>
+              <a href="${finalMeta.originalUrl}" target="_blank" rel="noopener" class="text-blue-600 hover:underline break-all">${finalMeta.originalUrl}</a>
+              <p class="mt-3 text-xs text-gray-500">GitHub cannot be embedded. Use the external link to view.</p>
+            </div>`;
+          docxContainer.classList.remove("hidden");
+          return;
+        } else {
+          // Other link: show both download (.url.txt) and external button
+          setExternalLinkBtn();
+          previewLoading.classList.add("hidden");
+          docxContainer.innerHTML = `
+            <div class="max-w-3xl mx-auto bg-gray-50 border border-gray-200 rounded-lg p-4 text-left" style="border-radius: 12px;">
+              <p class="text-sm text-gray-700">Link:</p>
+              <a href="${finalMeta.originalUrl}" target="_blank" rel="noopener" class="text-blue-600 hover:underline break-all">${finalMeta.originalUrl}</a>
+            </div>`;
+          docxContainer.classList.remove("hidden");
+          return;
+        }
+      } catch (e) {
+        console.error("Error loading text preview:", e);
+        showPreviewError("Unable to preview text file");
+        return;
+      }
+    } else if (fileExtension === "txt") {
+      // Plain text file: use Google Drive preview for consistency
+      iframeSrc = `https://drive.google.com/file/d/${file.id}/preview`;
+      mimeType = "text/plain";
+    } else if (isArchiveExt(fileExtension)) {
+      showPreviewError(
+        "Preview not available for archive files. Use Download."
+      );
+      return;
     } else {
-      showPreviewError("Unsupported file type");
-      return; // Stop further execution
+      // Fallback to Drive preview for unknown types
+      iframeSrc = `https://drive.google.com/file/d/${file.id}/preview`;
+      mimeType = file.mimeType || "application/octet-stream";
     }
 
     // 3.Initiate Loading with Animation
@@ -1515,6 +1908,36 @@ async function openFilePreview(file) {
       previewLoading.classList.add("hidden");
       docPreviewIframe.classList.remove("hidden");
     };
+
+    // Special handling: if the iframe fails (images occasionally block), fallback to inline <img>
+    if (isImageExt(fileExtension)) {
+      const failSafe = async () => {
+        try {
+          // Try to fetch content and render as inline <img>
+          let base64 = fileCache[file.id]?.blob?.split(",")[1];
+          if (!base64) {
+            base64 = await fetchFileContent(file.id);
+          }
+          if (base64) {
+            const mime = `image/${
+              fileExtension === "jpg" ? "jpeg" : fileExtension
+            }`;
+            const src = `data:${mime};base64,${base64}`;
+            previewLoading.classList.add("hidden");
+            docxContainer.innerHTML = `<img alt="Image preview" src="${src}" class="max-w-full h-auto mx-auto" style="border-radius: 8px;"/>`;
+            docxContainer.classList.remove("hidden");
+            docPreviewIframe.classList.add("hidden");
+          }
+        } catch (e) {
+          console.warn("Image fallback failed:", e);
+        }
+      };
+      // If iframe can't load, attempt fallback after a short grace period
+      const timeout = setTimeout(failSafe, 3000);
+      docPreviewIframe.addEventListener("load", () => clearTimeout(timeout), {
+        once: true,
+      });
+    }
 
     // Kick off animation!
     startProgressAnimation(docPreviewIframe, previewLoading, onPreviewLoad);
@@ -1592,55 +2015,7 @@ function showPreviewError(message) {
 
 // Print the current file
 async function printFile() {
-  const fileExtension = previewFilename.textContent
-    .split(".")
-    .pop()
-    .toLowerCase();
-  if (fileExtension === "doc" || fileExtension === "docx") {
-    if (!currentFileId && !currentGoogleDocId) {
-      console.error("Print failed: no file ID or Google Doc ID is set");
-      alert("Please wait for the document to load before printing");
-      return;
-    }
-
-    const fileIdToUse = currentGoogleDocId || currentFileId; // Prefer Google Doc ID if available
-    const printUrl = `https://docs.google.com/document/d/${fileIdToUse}/preview?tab=t.0`;
-    const printWindow = window.open(printUrl, "_blank");
-    if (!printWindow) {
-      alert("Please allow pop-ups to print the document");
-      return;
-    }
-
-    printWindow.addEventListener(
-      "load",
-      () => {
-        setTimeout(() => {
-          try {
-            printWindow.focus();
-            printWindow.print();
-            printWindow.close();
-          } catch (e) {
-            console.error("Error during print operation:", e);
-            alert(
-              "Failed to print document. Please try printing manually from the preview."
-            );
-          }
-        }, 2000);
-      },
-      { once: true }
-    );
-
-    setTimeout(() => {
-      if (printWindow.document.readyState !== "complete") {
-        alert(
-          "Failed to load document for printing. Please try printing manually."
-        );
-        printWindow.close();
-      }
-    }, 10000);
-  } else {
-    alert("Printing is not supported for this file type");
-  }
+  alert("Printing is disabled.");
 }
 
 // Download the current file
@@ -1667,12 +2042,99 @@ async function downloadFile() {
       .toLowerCase();
     let downloadUrl;
 
+    const lowerName = (previewFilename.textContent || "").toLowerCase();
+    const isUrlTxt = lowerName.endsWith(".url.txt");
+
+    if (isUrlTxt) {
+      // Enforce clean filename by downloading via Blob
+      try {
+        let base64 = null;
+        try {
+          base64 = await fetchFileContent(currentFileId);
+        } catch (_) {
+          base64 = null;
+        }
+        let blob;
+        if (base64) {
+          const byteChars = atob(base64);
+          const byteNumbers = new Array(byteChars.length);
+          for (let i = 0; i < byteChars.length; i++)
+            byteNumbers[i] = byteChars.charCodeAt(i);
+          const byteArray = new Uint8Array(byteNumbers);
+          blob = new Blob([byteArray], { type: "text/plain;charset=utf-8" });
+        } else {
+          // Fallback: synthesize from link meta if content fetch fails
+          const fileObj =
+            (folderCache[currentFolderId]?.content || []).find(
+              (f) => f.id === currentFileId
+            ) || {};
+          const meta = fileObj.linkMeta ||
+            fileCache[currentFileId]?.linkMeta || { originalUrl: "" };
+          blob = new Blob([meta.originalUrl || ""], {
+            type: "text/plain;charset=utf-8",
+          });
+        }
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = previewFilename.textContent;
+        document.body.appendChild(a);
+        a.click();
+        setTimeout(() => {
+          URL.revokeObjectURL(url);
+          document.body.removeChild(a);
+        }, 0);
+
+        // Show checkmark with animation (reuse existing success UI)
+        downloadButton.innerHTML = `
+      <svg fill="#259d49" version="1.1" id="Capa_1" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" viewBox="0 0 342.508 342.508" xml:space="preserve" stroke="#259d49" class="w-6 h-6 animate-checkmark">
+        <g id="SVGRepo_bgCarrier" stroke-width="0"></g>
+        <g id="SVGRepo_tracerCarrier" stroke-linecap="round" stroke-linejoin="round"></g>
+        <g id="SVGRepo_iconCarrier">
+          <g>
+            <path d="M171.254,0C76.837,0,0.003,76.819,0.003,171.248c0,94.428,76.829,171.26,171.251,171.26 c94.438,0,171.251-76.826,171.251-171.26C342.505,76.819,265.697,0,171.254,0z M245.371,136.161l-89.69,89.69 c-2.693,2.69-6.242,4.048-9.758,4.048c-3.543,0-7.059-1.357-9.761-4.048l-39.007-39.007c-5.393-5.398-5.393-14.129,0-19.521 c5.392-5.392,14.123-5.392,19.516,0l29.252,29.262l79.944-79.948c5.381-5.386,14.111-5.386,19.504,0 C250.764,122.038,250.764,130.769,245.371,136.161z"></path>
+          </g>
+        </g>
+      </svg>
+      <style>
+        @keyframes checkmark { 0% { opacity: 0; transform: scale(0); } 50% { opacity: 1; transform: scale(1.2); } 100% { opacity: 1; transform: scale(1); } }
+        .animate-checkmark { animation: checkmark 0.3s ease-in-out forwards; }
+      </style>`;
+        setTimeout(() => {
+          downloadButton.innerHTML = `
+        <div style="opacity: 0; transition: opacity 0.3s ease-in-out;">${originalButtonContent}</div>`;
+          setTimeout(() => {
+            downloadButton.querySelector("div").style.opacity = "1";
+          }, 50);
+        }, 1000);
+        return; // Done
+      } catch (err) {
+        console.warn(
+          "Blob download failed, falling back to direct download:",
+          err
+        );
+        // Fallback to legacy path below
+      }
+    }
+
     if (
       currentGoogleDocId &&
       (fileExtension === "doc" || fileExtension === "docx")
     ) {
-      // Use Google Doc ID for DOC/DOCX files with Google Doc ID
+      // Use Google Docs export
       downloadUrl = `https://docs.google.com/document/d/${currentGoogleDocId}/export?format=docx`;
+    } else if (
+      currentGoogleDocId &&
+      (fileExtension === "ppt" || fileExtension === "pptx")
+    ) {
+      // Google Slides export
+      downloadUrl = `https://docs.google.com/presentation/d/${currentGoogleDocId}/export/pptx`;
+    } else if (
+      currentGoogleDocId &&
+      (fileExtension === "xls" || fileExtension === "xlsx")
+    ) {
+      // Google Sheets export
+      downloadUrl = `https://docs.google.com/spreadsheets/d/${currentGoogleDocId}/export?format=xlsx`;
     } else if (currentFileId) {
       // Use Google Drive direct download for PDFs or DOC/DOCX without Google Doc ID
       downloadUrl = `https://drive.usercontent.google.com/download?id=${currentFileId}&export=download`;
@@ -1840,12 +2302,14 @@ async function fetchFiles(folderId) {
     const data = await response.json();
     if (data.error) throw new Error(data.error);
 
-    // Parse filenames and extract components
+    // Parse filenames and extract components (support leading URL marker)
     const parsedFiles = data.files.map((file) => {
+      const { strippedName, meta } = extractUrlFromFilename(file.name);
+      const effectiveName = strippedName;
       // Updated regex to handle both new and existing filename patterns
       const filePattern =
-        /^([A-Za-z&]+)_((?:ISE\s*\d|ESE|Combined|Resources_[^_]+|[^_]+))_SEM\s*(\d)\s*(?:\(([A-Za-z]+)\))?<(\d{4}-\d{2})>(?:\{([A-Za-z0-9_-]+)\})?\.([a-zA-Z]+)/;
-      const match = file.name.match(filePattern);
+        /^([A-Za-z&]+)_((?:ISE\s*\d|ESE|Combined|Resources_[^_]+|[^_]+))_SEM\s*(\d)\s*(?:\(([A-Za-z]+)\))<([0-9]{4}-[0-9]{2})>(?:\{([A-Za-z0-9_-]+)\})?\.([a-zA-Z]+)/;
+      const match = effectiveName.match(filePattern);
       if (match) {
         const [
           ,
@@ -1859,6 +2323,7 @@ async function fetchFiles(folderId) {
         ] = match;
         return {
           ...file,
+          name: effectiveName, // natural name without marker for display/download
           course,
           examType: examType.trim(),
           semester: `SEM${semester}`,
@@ -1866,16 +2331,19 @@ async function fetchFiles(folderId) {
           year,
           googleDocId,
           extension,
+          linkMeta: meta,
         };
       }
       return {
         ...file,
+        name: effectiveName,
         course: "Unknown",
         examType: "Unknown",
         semester: "Unknown",
         uploaderName: "Unknown",
         year: "Unknown",
-        extension: file.name.split(".").pop().toLowerCase(),
+        extension: effectiveName.split(".").pop().toLowerCase(),
+        linkMeta: meta || null,
       };
     });
 
